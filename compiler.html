@@ -4,8 +4,263 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Courses - B.Tech Walleh</title>
+    <title>Online Compiler - B.Tech Walleh</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <style>
+        .compiler-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem 20px;
+        }
+
+        .compiler-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .compiler-header h1 {
+            color: #ffc107;
+            font-size: 2rem;
+            margin: 0;
+        }
+
+        .compiler-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .language-selector {
+            padding: 0.6rem 1rem;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .language-selector:focus {
+            outline: none;
+            border-color: #ffc107;
+            box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.1);
+        }
+
+        .run-btn {
+            padding: 0.6rem 2rem;
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: #121212;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .run-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #ff9800 0%, #ffc107 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 193, 7, 0.4);
+        }
+
+        .run-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .clear-btn {
+            padding: 0.6rem 1.5rem;
+            background-color: transparent;
+            color: #e0e0e0;
+            border: 1px solid #333;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .clear-btn:hover {
+            border-color: #ffc107;
+            color: #ffc107;
+        }
+
+        .compiler-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .editor-section,
+        .output-section {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .section-header h2 {
+            color: #ffc107;
+            font-size: 1.2rem;
+            margin: 0;
+        }
+
+        .editor-wrapper {
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #1e1e1e;
+            flex: 1;
+            min-height: 500px;
+        }
+
+        .CodeMirror {
+            height: 100%;
+            min-height: 500px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .output-wrapper {
+            border: 1px solid #333;
+            border-radius: 8px;
+            background-color: #1e1e1e;
+            padding: 1rem;
+            flex: 1;
+            min-height: 500px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .output-content {
+            flex: 1;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #e0e0e0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background-color: #121212;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+        }
+
+        .output-content.empty {
+            color: #666;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-style: italic;
+        }
+
+        .output-content.success {
+            color: #4caf50;
+        }
+
+        .output-content.error {
+            color: #f44336;
+        }
+
+        .output-content.running {
+            color: #ffc107;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 193, 7, 0.3);
+            border-top-color: #ffc107;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .example-code-btn {
+            padding: 0.5rem 1rem;
+            background-color: transparent;
+            color: #ffc107;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .example-code-btn:hover {
+            background-color: #ffc107;
+            color: #121212;
+        }
+
+        .info-banner {
+            background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+            border-left: 4px solid #ffc107;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            color: #fff;
+        }
+
+        .info-banner p {
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        .info-banner strong {
+            color: #ffc107;
+        }
+
+        @media (max-width: 968px) {
+            .compiler-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .compiler-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .compiler-controls {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .editor-wrapper,
+            .output-wrapper {
+                min-height: 400px;
+            }
+
+            .CodeMirror {
+                min-height: 400px;
+            }
+        }
+    </style>
 </head>
 
 <body>
@@ -19,8 +274,8 @@
             <ul class="nav-links">
                 <li><a href="index.html">Home</a></li>
                 <li><a href="about.html">About Us</a></li>
-                <li><a href="courses.html" class="active">Courses</a></li>
-                <li><a href="compiler.html">Compiler</a></li>
+                <li><a href="courses.html">Courses</a></li>
+                <li><a href="compiler.html" class="active">Compiler</a></li>
             </ul>
         </nav>
     </header>
@@ -28,50 +283,53 @@
     <main>
         <section class="page-header">
             <div class="container">
-                <h1>Our Courses</h1>
-                <p>Choose from our range of technical training programs</p>
+                <h1>Online Compiler</h1>
+                <p>Write, compile, and run C/C++ code directly in your browser</p>
             </div>
         </section>
 
-        <section class="courses">
-            <div class="container">
-                <div class="course-grid">
-                    <div class="course-card">
-                        <h3>Web Development</h3>
-                        <p>Learn modern web development technologies including HTML, CSS, JavaScript, and frameworks.
-                        </p>
-                        <a href="course-detail.html?course=web-development" class="btn-secondary">Learn More</a>
+        <section class="content">
+            <div class="compiler-container">
+                <!-- <div class="info-banner">
+                    <p><strong>Note:</strong> This compiler uses the Judge0 API. For production use, you may need to set
+                        up your own API endpoint. The code runs in a secure sandbox environment.</p>
+                </div> -->
+
+                <div class="compiler-header">
+                    <h1>Code Editor</h1>
+                    <div class="compiler-controls">
+                        <select id="languageSelect" class="language-selector">
+                            <option value="50">C (GCC 9.2.0)</option>
+                            <option value="54">C++ (GCC 9.2.0)</option>
+                        </select>
+                        <button id="loadExampleBtn" class="example-code-btn">Load Example</button>
+                        <button id="clearBtn" class="clear-btn">Clear</button>
+                        <button id="runBtn" class="run-btn">
+                            <span id="runBtnText">Run Code</span>
+                            <span id="runBtnSpinner" class="loading-spinner" style="display: none;"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="compiler-layout">
+                    <div class="editor-section">
+                        <div class="section-header">
+                            <h2>Editor</h2>
+                        </div>
+                        <div class="editor-wrapper">
+                            <textarea id="codeEditor"></textarea>
+                        </div>
                     </div>
 
-                    <div class="course-card">
-                        <h3>Software Engineering</h3>
-                        <p>Master software development principles, design patterns, and best practices.</p>
-                        <a href="course-detail.html?course=software-engineering" class="btn-secondary">Learn More</a>
-                    </div>
-
-                    <div class="course-card">
-                        <h3>Data Science</h3>
-                        <p>Explore data analysis, machine learning, and statistical methods for data-driven decisions.
-                        </p>
-                        <a href="course-detail.html?course=data-science" class="btn-secondary">Learn More</a>
-                    </div>
-
-                    <div class="course-card">
-                        <h3>Cybersecurity</h3>
-                        <p>Understand security principles, threat analysis, and protection strategies.</p>
-                        <a href="course-detail.html?course=cybersecurity" class="btn-secondary">Learn More</a>
-                    </div>
-
-                    <div class="course-card">
-                        <h3>Cloud Computing</h3>
-                        <p>Learn cloud platforms, infrastructure, and deployment strategies.</p>
-                        <a href="course-detail.html?course=cloud-computing" class="btn-secondary">Learn More</a>
-                    </div>
-
-                    <div class="course-card">
-                        <h3>Mobile App Development</h3>
-                        <p>Build mobile applications for iOS and Android platforms.</p>
-                        <a href="course-detail.html?course=mobile-app" class="btn-secondary">Learn More</a>
+                    <div class="output-section">
+                        <div class="section-header">
+                            <h2>Output</h2>
+                        </div>
+                        <div class="output-wrapper">
+                            <div id="outputContent" class="output-content empty">
+                                Output will appear here after running your code...
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -223,6 +481,9 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/clike/clike.min.js"></script>
+    <script src="compiler.js"></script>
     <script src="callback-modal.js"></script>
     <script src="floating-contact.js"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>

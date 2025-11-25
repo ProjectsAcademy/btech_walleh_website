@@ -1,10 +1,49 @@
-// Judge0 API Configuration
-// Note: For production, you should set up your own Judge0 instance
-// or use a paid API service. The free public API has rate limits.
-const JUDGE0_API_URL = 'https://judge0-ce.p.rapidapi.com';
-const JUDGE0_API_KEY = ''; // Add your RapidAPI key here if using RapidAPI
-// Alternative: Use the public Judge0 API (may have rate limits)
-const USE_PUBLIC_API = true; // Set to false if using RapidAPI
+// Judge0 API Configuration - Dual API System
+// This system uses both public API and RapidAPI for up to 100 submissions
+// It automatically falls back to RapidAPI if public API hits rate limits
+
+// API Configurations
+const API_CONFIGS = {
+    public: {
+        name: 'Public Judge0 API',
+        submitUrl: 'https://ce.judge0.com/submissions?base64_encoded=false&wait=false',
+        resultUrl: 'https://ce.judge0.com/submissions',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    },
+    rapidapi: {
+        name: 'RapidAPI Judge0',
+        submitUrl: 'https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=false',
+        resultUrl: 'https://judge0-ce.p.rapidapi.com/submissions',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-RapidAPI-Key': '77dbed1517msh37a97ee00e5ab78p1bc351jsn9d103bd60c7d',
+            'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com'
+        }
+    }
+};
+
+// Track current active API (starts with public, falls back to rapidapi)
+let currentAPI = 'public';
+let apiSwitched = false; // Track if we've switched APIs
+
+// Function to display current API status
+function updateAPIStatus() {
+    const apiConfig = API_CONFIGS[currentAPI];
+    console.log(`Using: ${apiConfig.name}`);
+
+    // Optional: You can add a visual indicator in the UI here
+    // For example, update a status badge in the compiler interface
+}
+
+// Function to reset API state (useful when limits reset daily)
+function resetAPIState() {
+    currentAPI = 'public';
+    apiSwitched = false;
+    updateAPIStatus();
+    console.log('API state reset. Back to using Public API.');
+}
 
 // Language IDs for Judge0
 const LANGUAGE_IDS = {
@@ -47,7 +86,7 @@ int main() {
 let editor;
 let currentLanguage = '50';
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Initialize CodeMirror
     editor = CodeMirror.fromTextArea(document.getElementById('codeEditor'), {
         lineNumbers: true,
@@ -63,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
     editor.setValue(EXAMPLE_CODE[currentLanguage]);
 
     // Language selector change
-    document.getElementById('languageSelect').addEventListener('change', function(e) {
+    document.getElementById('languageSelect').addEventListener('change', function (e) {
         currentLanguage = e.target.value;
         const mode = currentLanguage === '50' ? 'text/x-csrc' : 'text/x-c++src';
         editor.setOption('mode', mode);
@@ -72,31 +111,35 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Load example button
-    document.getElementById('loadExampleBtn').addEventListener('click', function() {
+    document.getElementById('loadExampleBtn').addEventListener('click', function () {
         editor.setValue(EXAMPLE_CODE[currentLanguage]);
         clearOutput();
     });
 
     // Clear button
-    document.getElementById('clearBtn').addEventListener('click', function() {
+    document.getElementById('clearBtn').addEventListener('click', function () {
         editor.setValue('');
         clearOutput();
     });
 
     // Run button
-    document.getElementById('runBtn').addEventListener('click', function() {
+    document.getElementById('runBtn').addEventListener('click', function () {
         runCode();
     });
 
     // Keyboard shortcut: Ctrl+Enter or Cmd+Enter to run
     editor.setOption('extraKeys', {
-        'Ctrl-Enter': function() {
+        'Ctrl-Enter': function () {
             runCode();
         },
-        'Cmd-Enter': function() {
+        'Cmd-Enter': function () {
             runCode();
         }
     });
+
+    // Initialize API status
+    updateAPIStatus();
+    console.log('Dual API system initialized. Starting with Public API, will auto-switch to RapidAPI if needed.');
 });
 
 function clearOutput() {
@@ -109,11 +152,11 @@ function showLoading() {
     const runBtn = document.getElementById('runBtn');
     const runBtnText = document.getElementById('runBtnText');
     const runBtnSpinner = document.getElementById('runBtnSpinner');
-    
+
     runBtn.disabled = true;
     runBtnText.textContent = 'Running...';
     runBtnSpinner.style.display = 'inline-block';
-    
+
     const outputContent = document.getElementById('outputContent');
     outputContent.className = 'output-content running';
     outputContent.textContent = 'Compiling and running your code...\nPlease wait...';
@@ -123,7 +166,7 @@ function hideLoading() {
     const runBtn = document.getElementById('runBtn');
     const runBtnText = document.getElementById('runBtnText');
     const runBtnSpinner = document.getElementById('runBtnSpinner');
-    
+
     runBtn.disabled = false;
     runBtnText.textContent = 'Run Code';
     runBtnSpinner.style.display = 'none';
@@ -131,7 +174,7 @@ function hideLoading() {
 
 async function runCode() {
     const code = editor.getValue().trim();
-    
+
     if (!code) {
         showOutput('Error: Please write some code before running.', 'error');
         return;
@@ -140,39 +183,65 @@ async function runCode() {
     showLoading();
 
     try {
-        // Submit code to Judge0
+        // Submit code to Judge0 (with automatic fallback)
         const submission = await submitCode(code, currentLanguage);
-        
-        // Poll for result
+
+        // Poll for result using the same API
         const result = await pollResult(submission.token);
-        
+
         // Display result
         displayResult(result);
     } catch (error) {
         console.error('Error:', error);
-        showOutput(`Error: ${error.message}\n\nNote: If you see rate limit errors, you may need to set up your own Judge0 API instance.`, 'error');
+
+        // If error and we haven't switched APIs yet, try switching
+        if (!apiSwitched && currentAPI === 'public' && isRateLimitError(error)) {
+            console.log('⚠ Public API rate limit reached, automatically switching to RapidAPI...');
+            currentAPI = 'rapidapi';
+            apiSwitched = true;
+            updateAPIStatus();
+
+            // Show user-friendly message
+            const outputContent = document.getElementById('outputContent');
+            outputContent.className = 'output-content running';
+            outputContent.textContent = 'Public API limit reached. Switching to RapidAPI...\nRetrying submission...';
+
+            // Retry with RapidAPI
+            try {
+                const submission = await submitCode(code, currentLanguage);
+                const result = await pollResult(submission.token);
+                displayResult(result);
+
+                // Add note about API switch in successful result
+                const successNote = '\n\n[✓ Using RapidAPI - You now have access to additional submissions]';
+                const outputContent2 = document.getElementById('outputContent');
+                outputContent2.textContent += successNote;
+            } catch (retryError) {
+                showOutput(`Error: ${retryError.message}\n\nBoth APIs are currently unavailable. Please try again later.`, 'error');
+            }
+        } else {
+            showOutput(`Error: ${error.message}\n\nNote: If you see rate limit errors, both APIs may have reached their limits.`, 'error');
+        }
     } finally {
         hideLoading();
     }
 }
 
+// Check if error is a rate limit error
+function isRateLimitError(error) {
+    const errorMessage = error.message.toLowerCase();
+    return errorMessage.includes('429') ||
+        errorMessage.includes('rate limit') ||
+        errorMessage.includes('too many requests') ||
+        errorMessage.includes('quota');
+}
+
 async function submitCode(code, languageId) {
-    const endpoint = USE_PUBLIC_API 
-        ? 'https://ce.judge0.com/submissions?base64_encoded=false&wait=false'
-        : `${JUDGE0_API_URL}/submissions?base64_encoded=false&wait=false`;
+    const apiConfig = API_CONFIGS[currentAPI];
 
-    const headers = {
-        'Content-Type': 'application/json',
-    };
-
-    if (!USE_PUBLIC_API && JUDGE0_API_KEY) {
-        headers['X-RapidAPI-Key'] = JUDGE0_API_KEY;
-        headers['X-RapidAPI-Host'] = 'judge0-ce.p.rapidapi.com';
-    }
-
-    const response = await fetch(endpoint, {
+    const response = await fetch(apiConfig.submitUrl, {
         method: 'POST',
-        headers: headers,
+        headers: apiConfig.headers,
         body: JSON.stringify({
             source_code: code,
             language_id: parseInt(languageId),
@@ -184,22 +253,34 @@ async function submitCode(code, languageId) {
 
     if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to submit code: ${response.status} ${errorText}`);
+
+        // If rate limit error and using public API, throw special error for fallback
+        if (response.status === 429 && currentAPI === 'public') {
+            throw new Error(`Rate limit reached on ${apiConfig.name}. Status: ${response.status}`);
+        }
+
+        throw new Error(`Failed to submit code (${apiConfig.name}): ${response.status} ${errorText}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+
+    // Log API switch if it happened
+    if (apiSwitched && currentAPI === 'rapidapi') {
+        console.log('✓ Successfully switched to RapidAPI');
+    }
+
+    return result;
 }
 
 async function pollResult(token, maxAttempts = 20) {
-    const endpoint = USE_PUBLIC_API
-        ? `https://ce.judge0.com/submissions/${token}?base64_encoded=false`
-        : `${JUDGE0_API_URL}/submissions/${token}?base64_encoded=false`;
+    const apiConfig = API_CONFIGS[currentAPI];
+    const endpoint = `${apiConfig.resultUrl}/${token}?base64_encoded=false`;
 
+    // Get headers for GET request (without Content-Type)
     const headers = {};
-
-    if (!USE_PUBLIC_API && JUDGE0_API_KEY) {
-        headers['X-RapidAPI-Key'] = JUDGE0_API_KEY;
-        headers['X-RapidAPI-Host'] = 'judge0-ce.p.rapidapi.com';
+    if (currentAPI === 'rapidapi') {
+        headers['X-RapidAPI-Key'] = apiConfig.headers['X-RapidAPI-Key'];
+        headers['X-RapidAPI-Host'] = apiConfig.headers['X-RapidAPI-Host'];
     }
 
     for (let i = 0; i < maxAttempts; i++) {
@@ -211,7 +292,11 @@ async function pollResult(token, maxAttempts = 20) {
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to get result: ${response.status}`);
+            // If rate limit during polling, try to switch APIs
+            if (response.status === 429 && currentAPI === 'public' && !apiSwitched) {
+                throw new Error(`Rate limit reached on ${apiConfig.name} during polling`);
+            }
+            throw new Error(`Failed to get result (${apiConfig.name}): ${response.status}`);
         }
 
         const result = await response.json();
@@ -255,7 +340,7 @@ function displayResult(result) {
         // Success
         className += ' success';
         output = result.stdout || '(No output)';
-        
+
         if (result.time) {
             output += `\n\n--- Execution Time: ${result.time}s ---`;
         }
@@ -270,19 +355,19 @@ function displayResult(result) {
         // Runtime Error or other errors
         className += ' error';
         output = `${statusName}\n\n`;
-        
+
         if (result.stderr) {
             output += `Error Output:\n${result.stderr}\n\n`;
         }
-        
+
         if (result.stdout) {
             output += `Output:\n${result.stdout}\n\n`;
         }
-        
+
         if (result.message) {
             output += `Message: ${result.message}`;
         }
-        
+
         if (!result.stderr && !result.stdout && !result.message) {
             output += 'No additional information available.';
         }

@@ -28,7 +28,10 @@
     <main>
         <section class="hero">
             <div class="hero-content">
-                <h2>Technical Training Center</h2>
+                <h2 class="transforming-heading">
+                    <span class="text-line" id="textLine1">How I Will Do It</span>
+                    <span class="text-line" id="textLine2">I Built This</span>
+                </h2>
                 <p>Empowering your technical skills with quality education</p>
                 <a href="courses.html" class="btn">Explore Courses</a>
             </div>
@@ -231,6 +234,47 @@
         (function () {
             emailjs.init("iiX9PAG3ms_N_hsoB");
         })();
+    </script>
+    <script>
+        // Transforming heading animation
+        document.addEventListener('DOMContentLoaded', function () {
+            const textLine1 = document.getElementById('textLine1');
+            const textLine2 = document.getElementById('textLine2');
+
+            // Start with first line visible
+            textLine1.classList.add('active');
+
+            // After 3 seconds, transition to second line
+            setTimeout(function () {
+                textLine1.classList.remove('active');
+                textLine1.classList.add('fade-out');
+
+                setTimeout(function () {
+                    textLine2.classList.add('active');
+                }, 400);
+            }, 3000);
+
+            // Loop the animation every 6 seconds
+            setInterval(function () {
+                if (textLine1.classList.contains('active')) {
+                    textLine1.classList.remove('active');
+                    textLine1.classList.add('fade-out');
+
+                    setTimeout(function () {
+                        textLine2.classList.remove('fade-out');
+                        textLine2.classList.add('active');
+                    }, 400);
+                } else {
+                    textLine2.classList.remove('active');
+                    textLine2.classList.add('fade-out');
+
+                    setTimeout(function () {
+                        textLine1.classList.remove('fade-out');
+                        textLine1.classList.add('active');
+                    }, 400);
+                }
+            }, 6000);
+        });
     </script>
 </body>
 

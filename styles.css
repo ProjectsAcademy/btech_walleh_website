@@ -756,6 +756,10 @@ footer p {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  body {
+    padding-bottom: 100px; /* Increased to account for fixed banner */
+  }
+
   nav {
     flex-direction: column;
     gap: 1rem;
@@ -787,7 +791,16 @@ footer p {
   }
 
   .banner-content {
-    padding: 0.75rem 10px;
+    padding: 0;
+  }
+
+  .fixed-contact-banner {
+    padding: 0.5rem 15px;
+  }
+
+  footer {
+    margin-bottom: 0;
+    padding-bottom: 1.5rem;
   }
 
   .modal-container {
@@ -849,14 +862,14 @@ footer p {
   }
 
   .floating-contact-icon {
-    bottom: 80px;
+    bottom: 100px; /* Increased to sit above the fixed banner */
     right: 15px;
     width: 50px;
     height: 50px;
   }
 
   .contact-popup {
-    bottom: 140px;
+    bottom: 160px; /* Adjusted to sit above floating icon */
     right: 15px;
     width: 260px;
   }

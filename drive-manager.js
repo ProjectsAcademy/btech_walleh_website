@@ -6,7 +6,12 @@ const DRIVE_CONFIG = {
     CLIENT_ID: '197129445780-ci0d4s2pbkk53784fuli7us95qhmm8ji.apps.googleusercontent.com', // User needs to set their Google OAuth Client ID
     API_KEY: 'AIzaSyAqH8AsRhlOw4vOQ6EmRUyBpVoOi0IoGCA', // User needs to set their Google API Key
     DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
-    SCOPES: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+    // Scope options:
+    // 'drive.file' - Only files created by this app (more secure, limited)
+    // 'drive.readonly' - Read all files in Drive (read-only)
+    // 'drive' - Full access to all Drive files (read + write)
+    // Using 'drive' to see all files in the folder, including manually uploaded ones
+    SCOPES: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
     FOLDER_NAME: 'CompilerFiles',
     ALLOWED_EXTENSIONS: ['.c', '.cpp', '.h', '.hpp'],
     MIME_TYPES: {

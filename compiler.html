@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         .compiler-container {
             max-width: 1400px;
@@ -236,6 +238,527 @@
             color: #ffc107;
         }
 
+        /* Google Drive Integration Styles */
+        .drive-connection-section {
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .drive-connection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .drive-connection-header h3 {
+            color: #ffc107;
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        .link-drive-btn {
+            padding: 0.6rem 1.5rem;
+            background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(66, 133, 244, 0.3);
+        }
+
+        .link-drive-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(66, 133, 244, 0.4);
+        }
+
+        .drive-user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #ffc107;
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .user-name {
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .user-email {
+            color: #b0b0b0;
+            font-size: 0.85rem;
+        }
+
+        .unlink-btn {
+            padding: 0.5rem 1rem;
+            background-color: transparent;
+            color: #f44336;
+            border: 1px solid #f44336;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .unlink-btn:hover {
+            background-color: #f44336;
+            color: #fff;
+        }
+
+        .drive-file-manager {
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .file-manager-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .file-manager-header h3 {
+            color: #ffc107;
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        .file-manager-controls {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .file-search-input {
+            padding: 0.5rem 1rem;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background-color: #121212;
+            color: #e0e0e0;
+            font-size: 0.9rem;
+            width: 200px;
+        }
+
+        .file-search-input:focus {
+            outline: none;
+            border-color: #ffc107;
+        }
+
+        .file-sort-select {
+            padding: 0.5rem 1rem;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background-color: #121212;
+            color: #e0e0e0;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .refresh-btn,
+        .create-file-btn,
+        .upload-file-btn {
+            padding: 0.5rem 1rem;
+            background-color: transparent;
+            color: #ffc107;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+        }
+
+        .refresh-btn:hover,
+        .create-file-btn:hover,
+        .upload-file-btn:hover {
+            background-color: #ffc107;
+            color: #121212;
+        }
+
+        .file-list-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background-color: #121212;
+        }
+
+        .file-list {
+            padding: 0.5rem;
+        }
+
+        .file-list-empty {
+            padding: 2rem;
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #333;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-item:hover {
+            background-color: #2a2a2a;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-item.active {
+            background-color: #2a2a2a;
+            border-left: 3px solid #ffc107;
+        }
+
+        .file-item-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+        }
+
+        .file-icon {
+            width: 24px;
+            height: 24px;
+            color: #ffc107;
+        }
+
+        .file-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .file-name {
+            color: #e0e0e0;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .file-meta {
+            color: #666;
+            font-size: 0.8rem;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .file-action-btn {
+            padding: 0.4rem 0.6rem;
+            background-color: transparent;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #e0e0e0;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.8rem;
+        }
+
+        .file-action-btn:hover {
+            border-color: #ffc107;
+            color: #ffc107;
+        }
+
+        .file-action-btn.delete:hover {
+            border-color: #f44336;
+            color: #f44336;
+        }
+
+        .save-file-btn {
+            padding: 0.6rem 1.5rem;
+            background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .save-file-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .current-file-name {
+            color: #ffc107;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .unsaved-indicator {
+            color: #ffc107;
+            font-size: 1.2rem;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* Notification System */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            border-left: 4px solid #ffc107;
+            border-radius: 8px;
+            color: #e0e0e0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            min-width: 300px;
+            animation: slideInRight 0.3s ease-out;
+        }
+
+        .notification.success {
+            border-left-color: #4caf50;
+        }
+
+        .notification.error {
+            border-left-color: #f44336;
+        }
+
+        .notification.info {
+            border-left-color: #2196f3;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .notification-icon {
+            font-size: 1.5rem;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .notification-message {
+            font-size: 0.9rem;
+            color: #b0b0b0;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notification-close:hover {
+            color: #ffc107;
+        }
+
+        /* Modal for Create File */
+        .modal-overlay-drive {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-container-drive {
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 100%;
+            padding: 2rem;
+            position: relative;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        .modal-close-drive {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #333;
+            border: none;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            color: #e0e0e0;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .modal-close-drive:hover {
+            background: #ffc107;
+            color: #121212;
+        }
+
+        .modal-title-drive {
+            color: #ffc107;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group-drive {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group-drive label {
+            display: block;
+            color: #e0e0e0;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group-drive input,
+        .form-group-drive select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background-color: #121212;
+            color: #e0e0e0;
+            font-size: 0.95rem;
+        }
+
+        .form-group-drive input:focus,
+        .form-group-drive select:focus {
+            outline: none;
+            border-color: #ffc107;
+        }
+
+        .modal-actions-drive {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+
+        .btn-modal-drive {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary-drive {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: #121212;
+        }
+
+        .btn-primary-drive:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+        }
+
+        .btn-secondary-drive {
+            background-color: transparent;
+            color: #e0e0e0;
+            border: 1px solid #333;
+        }
+
+        .btn-secondary-drive:hover {
+            border-color: #ffc107;
+            color: #ffc107;
+        }
+
         @media (max-width: 968px) {
             .compiler-layout {
                 grid-template-columns: 1fr;
@@ -258,6 +781,26 @@
 
             .CodeMirror {
                 min-height: 400px;
+            }
+
+            .drive-connection-header,
+            .file-manager-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .file-manager-controls {
+                width: 100%;
+            }
+
+            .file-search-input {
+                width: 100%;
+            }
+
+            .notification {
+                right: 10px;
+                left: 10px;
+                min-width: auto;
             }
         }
     </style>
@@ -290,10 +833,72 @@
 
         <section class="content">
             <div class="compiler-container">
-                <!-- <div class="info-banner">
-                    <p><strong>Note:</strong> This compiler uses the Judge0 API. For production use, you may need to set
-                        up your own API endpoint. The code runs in a secure sandbox environment.</p>
-                </div> -->
+                <div class="info-banner" id="driveSetupBanner" style="display: none;">
+                    <p><strong>Google Drive Configuration Error:</strong> API credentials are not properly configured.
+                        Please contact the administrator. For developers, see <code>PRODUCTION_SETUP.md</code> for setup instructions.
+                    </p>
+                </div>
+
+                <!-- Google Drive Connection Section -->
+                <div class="drive-connection-section" id="driveConnectionSection">
+                    <div class="drive-connection-header">
+                        <h3>Google Drive Integration</h3>
+                        <div class="drive-user-info" id="driveUserInfo" style="display: none;">
+                            <img id="userAvatar" src="" alt="User Avatar" class="user-avatar">
+                            <div class="user-details">
+                                <span id="userName" class="user-name"></span>
+                                <span id="userEmail" class="user-email"></span>
+                            </div>
+                            <button id="unlinkDriveBtn" class="unlink-btn">Unlink Drive</button>
+                        </div>
+                        <button id="linkDriveBtn" class="link-drive-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M7.71 13.12l-2.83 2.83 3.17 3.17L11 16.34l-3.29-3.22zm9.58-4.95l-2.83-2.83-3.17 3.17L12 7.66l3.29 3.22zM22 12c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2s10 4.48 10 10zm-2 0c0-4.42-3.58-8-8-8s-8 3.58-8 8 3.58 8 8 8 8-3.58 8-8z" />
+                            </svg>
+                            Link Google Drive
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Google Drive File Manager -->
+                <div class="drive-file-manager" id="driveFileManager" style="display: none;">
+                    <div class="file-manager-header">
+                        <h3>My C/C++ Files</h3>
+                        <div class="file-manager-controls">
+                            <input type="text" id="fileSearch" placeholder="Search files..." class="file-search-input">
+                            <select id="fileSort" class="file-sort-select">
+                                <option value="name">Sort by Name</option>
+                                <option value="modified">Sort by Modified</option>
+                                <option value="type">Sort by Type</option>
+                            </select>
+                            <button id="refreshFilesBtn" class="refresh-btn" title="Refresh">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                    <path
+                                        d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                                </svg>
+                            </button>
+                            <button id="createFileBtn" class="create-file-btn">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                                </svg>
+                                New File
+                            </button>
+                            <button id="uploadFileBtn" class="upload-file-btn">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" />
+                                </svg>
+                                Upload
+                            </button>
+                            <input type="file" id="fileUploadInput" accept=".c,.cpp,.h,.hpp" style="display: none;">
+                        </div>
+                    </div>
+                    <div class="file-list-container">
+                        <div id="fileList" class="file-list">
+                            <div class="file-list-empty">No files found. Create or upload a file to get started.</div>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="compiler-header">
                     <h1>Code Editor</h1>
@@ -302,6 +907,13 @@
                             <option value="50">C (GCC 9.2.0)</option>
                             <option value="54">C++ (GCC 9.2.0)</option>
                         </select>
+                        <button id="saveFileBtn" class="save-file-btn" style="display: none;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
+                            </svg>
+                            Save to Drive
+                        </button>
                         <button id="loadExampleBtn" class="example-code-btn">Load Example</button>
                         <button id="clearBtn" class="clear-btn">Clear</button>
                         <button id="runBtn" class="run-btn">
@@ -315,6 +927,10 @@
                     <div class="editor-section">
                         <div class="section-header">
                             <h2>Editor</h2>
+                            <div class="file-info" id="fileInfo" style="display: none;">
+                                <span id="currentFileName" class="current-file-name"></span>
+                                <span id="unsavedIndicator" class="unsaved-indicator" style="display: none;">●</span>
+                            </div>
                         </div>
                         <div class="editor-wrapper">
                             <textarea id="codeEditor"></textarea>
@@ -415,6 +1031,31 @@
         </div>
     </div>
 
+    <!-- Create File Modal -->
+    <div class="modal-overlay-drive" id="createFileModal">
+        <div class="modal-container-drive">
+            <button class="modal-close-drive" id="createFileModalClose">&times;</button>
+            <h2 class="modal-title-drive">Create New File</h2>
+            <div class="form-group-drive">
+                <label for="newFileName">File Name (without extension)</label>
+                <input type="text" id="newFileName" placeholder="e.g., myprogram" required>
+            </div>
+            <div class="form-group-drive">
+                <label for="newFileExtension">File Extension</label>
+                <select id="newFileExtension">
+                    <option value=".cpp">.cpp (C++)</option>
+                    <option value=".c">.c (C)</option>
+                    <option value=".hpp">.hpp (C++ Header)</option>
+                    <option value=".h">.h (C Header)</option>
+                </select>
+            </div>
+            <div class="modal-actions-drive">
+                <button class="btn-modal-drive btn-secondary-drive" id="createFileCancelBtn">Cancel</button>
+                <button class="btn-modal-drive btn-primary-drive" id="createFileSubmitBtn">Create</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Callback Modal -->
     <div class="modal-overlay" id="callbackModal">
         <div class="modal-container">
@@ -483,6 +1124,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/clike/clike.min.js"></script>
+    <script src="drive-manager.js"></script>
     <script src="compiler.js"></script>
     <script src="callback-modal.js"></script>
     <script src="floating-contact.js"></script>

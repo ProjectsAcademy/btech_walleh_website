@@ -98,6 +98,9 @@ document.addEventListener('DOMContentLoaded', function () {
         autofocus: true
     });
 
+    // Expose editor globally for Drive manager
+    window.editor = editor;
+
     // Set initial example code
     editor.setValue(EXAMPLE_CODE[currentLanguage]);
 
@@ -128,12 +131,25 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // Keyboard shortcut: Ctrl+Enter or Cmd+Enter to run
+    // Ctrl+S or Cmd+S to save (if Drive is connected)
     editor.setOption('extraKeys', {
         'Ctrl-Enter': function () {
             runCode();
         },
         'Cmd-Enter': function () {
             runCode();
+        },
+        'Ctrl-S': function (cm) {
+            if (window.saveFile && typeof window.saveFile === 'function') {
+                cm.preventDefault();
+                window.saveFile();
+            }
+        },
+        'Cmd-S': function (cm) {
+            if (window.saveFile && typeof window.saveFile === 'function') {
+                cm.preventDefault();
+                window.saveFile();
+            }
         }
     });
 

@@ -4,8 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Online Compiler - B.Tech Walleh</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
     <script src="https://apis.google.com/js/api.js"></script>
@@ -374,7 +377,8 @@
             border-color: #ffc107;
         }
 
-        .file-sort-select {
+        .file-sort-select,
+        .project-select {
             padding: 0.5rem 1rem;
             border: 1px solid #333;
             border-radius: 6px;
@@ -382,6 +386,37 @@
             color: #e0e0e0;
             font-size: 0.9rem;
             cursor: pointer;
+        }
+
+        .project-select {
+            min-width: 150px;
+            border-color: #ffc107;
+            background-color: #1e1e1e;
+        }
+
+        .project-select:focus {
+            outline: none;
+            border-color: #ffc107;
+            box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
+        }
+
+        .create-project-btn {
+            padding: 0.5rem 1rem;
+            background-color: transparent;
+            color: #ffc107;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+        }
+
+        .create-project-btn:hover {
+            background-color: #ffc107;
+            color: #121212;
         }
 
         .refresh-btn,
@@ -810,12 +845,12 @@
     <header>
         <nav>
             <div class="logo">
-                <a href="index.html">
+                <a href="../index.html">
                     <h1>B.Tech Walleh</h1>
                 </a>
             </div>
             <ul class="nav-links">
-                <li><a href="index.html">Home</a></li>
+                <li><a href="../index.html">Home</a></li>
                 <li><a href="about.html">About Us</a></li>
                 <li><a href="courses.html">Courses</a></li>
                 <li><a href="compiler.html" class="active">Compiler</a></li>
@@ -835,7 +870,8 @@
             <div class="compiler-container">
                 <div class="info-banner" id="driveSetupBanner" style="display: none;">
                     <p><strong>Google Drive Configuration Error:</strong> API credentials are not properly configured.
-                        Please contact the administrator. For developers, see <code>PRODUCTION_SETUP.md</code> for setup instructions.
+                        Please contact the administrator. For developers, see <code>PRODUCTION_SETUP.md</code> for setup
+                        instructions.
                     </p>
                 </div>
 
@@ -866,6 +902,15 @@
                     <div class="file-manager-header">
                         <h3>My C/C++ Files</h3>
                         <div class="file-manager-controls">
+                            <select id="projectSelect" class="project-select" title="Select Project">
+                                <option value="">Loading projects...</option>
+                            </select>
+                            <button id="createProjectBtn" class="create-project-btn" title="Create New Project">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                                </svg>
+                                New Project
+                            </button>
                             <input type="text" id="fileSearch" placeholder="Search files..." class="file-search-input">
                             <select id="fileSort" class="file-sort-select">
                                 <option value="name">Sort by Name</option>
@@ -971,7 +1016,7 @@
                 <div class="footer-quick-links">
                     <h4>Quick Links</h4>
                     <ul>
-                        <li><a href="index.html">Home</a></li>
+                        <li><a href="../index.html">Home</a></li>
                         <li><a href="about.html">About Us</a></li>
                         <li><a href="courses.html">Courses</a></li>
                         <li><a href="compiler.html">Compiler</a></li>
@@ -1012,7 +1057,7 @@
 
     <!-- Floating Contact Icon -->
     <div class="floating-contact-icon" id="floatingContactIcon">
-        <img src="images/contact-icon.png" alt="Contact Us" class="contact-icon-img">
+        <img src="../images/contact-icon.png" alt="Contact Us" class="contact-icon-img">
     </div>
 
     <!-- Contact Popup -->
@@ -1124,10 +1169,10 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/clike/clike.min.js"></script>
-    <script src="drive-manager.js"></script>
-    <script src="compiler.js"></script>
-    <script src="callback-modal.js"></script>
-    <script src="floating-contact.js"></script>
+    <script src="../js/drive-manager.js"></script>
+    <script src="../js/compiler.js"></script>
+    <script src="../js/callback-modal.js"></script>
+    <script src="../js/floating-contact.js"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <script type="text/javascript">
         (function () {

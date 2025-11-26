@@ -28,11 +28,16 @@ let driveState = {
     currentUser: null,
     currentFile: null,
     files: [],
-    folderId: null,
+    folderId: null, // Root CompilerFiles folder ID
+    currentProjectId: null, // Current project folder ID
+    currentProjectName: null, // Current project name
+    projects: [], // List of available projects
     gapiLoaded: false,
     gisLoaded: false,
     editor: null,
-    hasUnsavedChanges: false
+    hasUnsavedChanges: false,
+    operationInProgress: false, // Track if any operation is running
+    folderOperationInProgress: false // Track folder creation specifically
 };
 
 // Token client variable
@@ -40,6 +45,13 @@ let tokenClient = null;
 
 // Initialize Google APIs
 function initializeGoogleAPIs() {
+    // Wait for gapi to be available
+    if (typeof gapi === 'undefined') {
+        console.log('Waiting for Google API script to load...');
+        setTimeout(initializeGoogleAPIs, 100);
+        return;
+    }
+
     // Validate API key format
     if (!DRIVE_CONFIG.API_KEY || DRIVE_CONFIG.API_KEY.startsWith('GOCSPX-')) {
         console.error('Invalid API Key format. API Keys should start with "AIza..." not "GOCSPX-"');
@@ -48,6 +60,16 @@ function initializeGoogleAPIs() {
     }
 
     // Load Google API
+    // Suppress polyfill.js errors (usually from browser extensions)
+    const originalConsoleError = console.error;
+    console.error = function (...args) {
+        // Filter out polyfill.js connection errors (harmless browser extension errors)
+        if (args[0] && typeof args[0] === 'string' && args[0].includes('polyfill.js') && args[0].includes('Receiving end does not exist')) {
+            return; // Suppress this error
+        }
+        originalConsoleError.apply(console, args);
+    };
+
     gapi.load('client', async () => {
         try {
             await gapi.client.init({
@@ -56,7 +78,13 @@ function initializeGoogleAPIs() {
             });
             driveState.gapiLoaded = true;
             console.log('Google API loaded successfully');
+
+            // Restore original console.error after successful load
+            console.error = originalConsoleError;
         } catch (error) {
+            // Restore original console.error on error
+            console.error = originalConsoleError;
+
             console.error('Error loading Google API:', error);
             let errorMessage = 'Failed to load Google Drive API';
 
@@ -77,16 +105,29 @@ function initializeGoogleAPIs() {
         }
     });
 
-    // Initialize Google Identity Services
-    if (typeof google !== 'undefined' && google.accounts) {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: DRIVE_CONFIG.CLIENT_ID,
-            scope: DRIVE_CONFIG.SCOPES,
-            callback: handleTokenResponse,
-        });
-        driveState.gisLoaded = true;
-        console.log('Token client initialized with scopes:', DRIVE_CONFIG.SCOPES);
-    }
+    // Initialize Google Identity Services (wait for it to load)
+    const initGoogleIdentity = () => {
+        if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+            try {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: DRIVE_CONFIG.CLIENT_ID,
+                    scope: DRIVE_CONFIG.SCOPES,
+                    callback: handleTokenResponse,
+                });
+                driveState.gisLoaded = true;
+                console.log('Token client initialized with scopes:', DRIVE_CONFIG.SCOPES);
+            } catch (error) {
+                console.error('Error initializing token client:', error);
+                driveState.gisLoaded = false;
+            }
+        } else {
+            // Google Identity Services not loaded yet, wait and retry
+            setTimeout(initGoogleIdentity, 100);
+        }
+    };
+
+    // Start initialization (will retry if not ready)
+    initGoogleIdentity();
 }
 
 // Handle OAuth token response
@@ -94,8 +135,13 @@ function handleTokenResponse(response) {
     if (response.error) {
         showNotification('Failed to authenticate with Google Drive', 'error');
         console.error('OAuth error:', response.error);
+        driveState.operationInProgress = false;
+        setButtonLoading('linkDriveBtn', false);
         return;
     }
+
+    // Set loading state
+    setButtonLoading('linkDriveBtn', true);
 
     // Set the access token on gapi client
     if (response.access_token) {
@@ -106,9 +152,23 @@ function handleTokenResponse(response) {
     }
 
     driveState.isSignedIn = true;
-    getUserInfo();
-    findOrCreateFolder();
-    showNotification('Successfully connected to Google Drive', 'success');
+
+    // Run operations sequentially to prevent race conditions
+    (async () => {
+        try {
+            await getUserInfo();
+            await findOrCreateRootFolder();
+            if (!driveState.currentProjectId) {
+                await loadProjects();
+            }
+            showNotification('Successfully connected to Google Drive', 'success');
+        } catch (error) {
+            console.error('Error during connection setup:', error);
+        } finally {
+            driveState.operationInProgress = false;
+            setButtonLoading('linkDriveBtn', false);
+        }
+    })();
 }
 
 // Get user information
@@ -193,21 +253,38 @@ function updateUserUI() {
     }
 }
 
-// Find or create CompilerFiles folder
-async function findOrCreateFolder() {
+// Find or create root CompilerFiles folder
+async function findOrCreateRootFolder() {
+    // Prevent multiple simultaneous folder operations
+    if (driveState.folderOperationInProgress) {
+        console.log('Folder operation already in progress, waiting...');
+        // Wait for the current operation to complete
+        while (driveState.folderOperationInProgress) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        return; // Folder should be set by now
+    }
+
+    // If root folder already exists, return early
+    if (driveState.folderId) {
+        return;
+    }
+
+    driveState.folderOperationInProgress = true;
+
     try {
-        // Search for existing folder
+        // Search for existing root folder
         const response = await gapi.client.drive.files.list({
-            q: `name='${DRIVE_CONFIG.FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+            q: `name='${DRIVE_CONFIG.FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false and 'root' in parents`,
             fields: 'files(id, name)',
             spaces: 'drive'
         });
 
         if (response.result.files && response.result.files.length > 0) {
             driveState.folderId = response.result.files[0].id;
-            console.log('Found existing folder:', driveState.folderId);
+            console.log('Found existing root folder:', driveState.folderId);
         } else {
-            // Create new folder
+            // Create new root folder
             const createResponse = await gapi.client.drive.files.create({
                 resource: {
                     name: DRIVE_CONFIG.FOLDER_NAME,
@@ -216,32 +293,267 @@ async function findOrCreateFolder() {
                 fields: 'id, name'
             });
             driveState.folderId = createResponse.result.id;
-            console.log('Created new folder:', driveState.folderId);
+            console.log('Created new root folder:', driveState.folderId);
             showNotification('Created CompilerFiles folder in your Drive', 'info');
         }
     } catch (error) {
-        console.error('Error finding/creating folder:', error);
+        console.error('Error finding/creating root folder:', error);
         showNotification('Failed to access Drive folder', 'error');
+    } finally {
+        driveState.folderOperationInProgress = false;
     }
 }
 
-// Load files from Google Drive
+// Find or create project folder
+async function findOrCreateProjectFolder(projectName) {
+    if (!driveState.folderId) {
+        await findOrCreateRootFolder();
+    }
+
+    if (!projectName) {
+        projectName = driveState.currentProjectName || 'Default Project';
+    }
+
+    try {
+        // Search for existing project folder
+        const response = await gapi.client.drive.files.list({
+            q: `name='${projectName}' and mimeType='application/vnd.google-apps.folder' and trashed=false and '${driveState.folderId}' in parents`,
+            fields: 'files(id, name)',
+            spaces: 'drive'
+        });
+
+        if (response.result.files && response.result.files.length > 0) {
+            const projectId = response.result.files[0].id;
+            driveState.currentProjectId = projectId;
+            driveState.currentProjectName = projectName;
+            return projectId;
+        } else {
+            // Create new project folder
+            const createResponse = await gapi.client.drive.files.create({
+                resource: {
+                    name: projectName,
+                    mimeType: 'application/vnd.google-apps.folder',
+                    parents: [driveState.folderId]
+                },
+                fields: 'id, name'
+            });
+            driveState.currentProjectId = createResponse.result.id;
+            driveState.currentProjectName = projectName;
+            console.log('Created new project folder:', projectName, createResponse.result.id);
+            return createResponse.result.id;
+        }
+    } catch (error) {
+        console.error('Error finding/creating project folder:', error);
+        showNotification('Failed to create project folder', 'error');
+        return null;
+    }
+}
+
+// Load all projects (folders inside root folder)
+async function loadProjects() {
+    if (!driveState.folderId) {
+        await findOrCreateRootFolder();
+    }
+
+    try {
+        const response = await gapi.client.drive.files.list({
+            q: `'${driveState.folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+            fields: 'files(id, name, modifiedTime)',
+            orderBy: 'modifiedTime desc',
+            spaces: 'drive'
+        });
+
+        driveState.projects = response.result.files || [];
+
+        // If no projects exist, create a default one
+        if (driveState.projects.length === 0) {
+            await findOrCreateProjectFolder('Default Project');
+            driveState.projects = [{
+                id: driveState.currentProjectId,
+                name: 'Default Project'
+            }];
+        } else if (!driveState.currentProjectId) {
+            // Use first project as default
+            driveState.currentProjectId = driveState.projects[0].id;
+            driveState.currentProjectName = driveState.projects[0].name;
+        }
+
+        updateProjectSelector();
+        return driveState.projects;
+    } catch (error) {
+        console.error('Error loading projects:', error);
+        showNotification('Failed to load projects', 'error');
+        return [];
+    }
+}
+
+// Update project selector UI
+function updateProjectSelector() {
+    const projectSelect = document.getElementById('projectSelect');
+    if (!projectSelect) return;
+
+    projectSelect.innerHTML = '';
+
+    if (driveState.projects.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No projects';
+        projectSelect.appendChild(option);
+        return;
+    }
+
+    driveState.projects.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project.id;
+        option.textContent = project.name;
+        if (project.id === driveState.currentProjectId) {
+            option.selected = true;
+        }
+        projectSelect.appendChild(option);
+    });
+}
+
+// Create new project
+async function createProject() {
+    const projectName = prompt('Enter project name:', 'New Project');
+    if (!projectName || !projectName.trim()) {
+        return;
+    }
+
+    const trimmedName = projectName.trim();
+
+    // Check if project with same name already exists
+    const existingProject = driveState.projects.find(p => p.name.toLowerCase() === trimmedName.toLowerCase());
+    if (existingProject) {
+        showNotification('A project with this name already exists', 'error');
+        return;
+    }
+
+    if (driveState.operationInProgress) {
+        showNotification('Please wait for the current operation to complete', 'info');
+        return;
+    }
+
+    driveState.operationInProgress = true;
+
+    try {
+        if (!driveState.folderId) {
+            await findOrCreateRootFolder();
+        }
+
+        const projectId = await findOrCreateProjectFolder(trimmedName);
+        if (projectId) {
+            await loadProjects(); // Reload projects list
+            driveState.currentProjectId = projectId;
+            driveState.currentProjectName = trimmedName;
+            updateProjectSelector();
+            await loadFiles(); // Load files for new project
+            showNotification(`Created project "${trimmedName}"`, 'success');
+        }
+    } catch (error) {
+        console.error('Error creating project:', error);
+        showNotification('Failed to create project', 'error');
+    } finally {
+        driveState.operationInProgress = false;
+    }
+}
+
+// Switch to a different project
+async function switchProject(projectId) {
+    if (!projectId || projectId === driveState.currentProjectId) {
+        return;
+    }
+
+    // Check for unsaved changes
+    if (driveState.hasUnsavedChanges && driveState.currentFile) {
+        if (!confirm('You have unsaved changes. Do you want to discard them and switch project?')) {
+            // Reset selector to current project
+            updateProjectSelector();
+            return;
+        }
+    }
+
+    const project = driveState.projects.find(p => p.id === projectId);
+    if (!project) {
+        showNotification('Project not found', 'error');
+        updateProjectSelector();
+        return;
+    }
+
+    driveState.currentProjectId = projectId;
+    driveState.currentProjectName = project.name;
+    driveState.currentFile = null;
+    driveState.hasUnsavedChanges = false;
+
+    // Clear editor and reset to default code
+    if (driveState.editor) {
+        const currentLanguage = document.getElementById('languageSelect')?.value || '54';
+        let defaultCode;
+        if (currentLanguage === '50') {
+            defaultCode = `#include <stdio.h>
+
+int main() {
+    printf("Hello, World!\\n");
+    printf("Welcome to B.Tech Walleh Online Compiler\\n");
+    
+    int num1 = 10, num2 = 20;
+    int sum = num1 + num2;
+    
+    printf("Sum of %d and %d is: %d\\n", num1, num2, sum);
+    
+    return 0;
+}`;
+        } else {
+            defaultCode = `#include <iostream>
+using namespace std;
+
+int main() {
+    cout << "Hello, World!" << endl;
+    cout << "Welcome to B.Tech Walleh Online Compiler" << endl;
+    
+    int num1 = 10, num2 = 20;
+    int sum = num1 + num2;
+    
+    cout << "Sum of " << num1 << " and " << num2 << " is: " << sum << endl;
+    
+    return 0;
+}`;
+        }
+        driveState.editor.setValue(defaultCode);
+    }
+
+    updateFileInfo();
+    await loadFiles();
+    showNotification(`Switched to project "${project.name}"`, 'info');
+}
+
+// Load files from current project folder
 async function loadFiles() {
     if (!driveState.folderId) {
-        await findOrCreateFolder();
+        await findOrCreateRootFolder();
+    }
+
+    // Ensure we have a current project
+    if (!driveState.currentProjectId) {
+        await loadProjects();
+    }
+
+    if (!driveState.currentProjectId) {
+        document.getElementById('fileList').innerHTML = '<div class="file-list-empty">No project selected. Please create a project.</div>';
+        return;
     }
 
     try {
         const fileList = document.getElementById('fileList');
         fileList.innerHTML = '<div class="file-list-empty">Loading files...</div>';
 
-        // Build query to filter C/C++ files in the folder
+        // Build query to filter C/C++ files in the current project folder
         const extensionQuery = DRIVE_CONFIG.ALLOWED_EXTENSIONS
             .map(ext => `name contains '${ext}'`)
             .join(' or ');
 
         const response = await gapi.client.drive.files.list({
-            q: `'${driveState.folderId}' in parents and (${extensionQuery}) and trashed=false`,
+            q: `'${driveState.currentProjectId}' in parents and (${extensionQuery}) and trashed=false`,
             fields: 'files(id, name, mimeType, modifiedTime, size)',
             orderBy: 'modifiedTime desc',
             spaces: 'drive'
@@ -368,15 +680,33 @@ async function saveFile() {
         return;
     }
 
-    if (!driveState.folderId) {
-        await findOrCreateFolder();
+    // Prevent multiple simultaneous save operations
+    if (driveState.operationInProgress) {
+        showNotification('Please wait for the current operation to complete', 'info');
+        return;
     }
 
-    const code = driveState.editor ? driveState.editor.getValue() : '';
-    const language = document.getElementById('languageSelect').value;
-    const extension = language === '50' ? '.c' : '.cpp';
+    driveState.operationInProgress = true;
+    const saveBtn = document.getElementById('saveFileBtn');
+    if (saveBtn) {
+        const originalText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.style.opacity = '0.6';
+        saveBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation:spin 0.8s linear infinite;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> Saving...';
+        saveBtn.dataset.originalText = originalText;
+    }
 
     try {
+        if (!driveState.folderId) {
+            await findOrCreateRootFolder();
+            if (!driveState.currentProjectId) {
+                await loadProjects();
+            }
+        }
+
+        const code = driveState.editor ? driveState.editor.getValue() : '';
+        const language = document.getElementById('languageSelect').value;
+        const extension = language === '50' ? '.c' : '.cpp';
         const token = gapi.client.getToken();
         if (!token) {
             showNotification('Not authenticated. Please reconnect to Google Drive.', 'error');
@@ -436,9 +766,15 @@ async function saveFile() {
             const delimiter = '\r\n--' + boundary + '\r\n';
             const closeDelim = '\r\n--' + boundary + '--';
 
+            // Get current project folder
+            if (!driveState.currentProjectId) {
+                await loadProjects();
+            }
+            const projectFolderId = driveState.currentProjectId || await findOrCreateProjectFolder('Default Project');
+
             const metadata = {
                 name: fullFileName,
-                parents: [driveState.folderId]
+                parents: [projectFolderId]
             };
 
             const multipartRequestBody =
@@ -477,6 +813,16 @@ async function saveFile() {
     } catch (error) {
         console.error('Error saving file:', error);
         showNotification('Failed to save file to Drive', 'error');
+    } finally {
+        // Reset loading state
+        driveState.operationInProgress = false;
+        const saveBtn = document.getElementById('saveFileBtn');
+        if (saveBtn && saveBtn.dataset.originalText) {
+            saveBtn.disabled = false;
+            saveBtn.style.opacity = '1';
+            saveBtn.innerHTML = saveBtn.dataset.originalText;
+            delete saveBtn.dataset.originalText;
+        }
     }
 }
 
@@ -488,8 +834,41 @@ function createFilePrompt() {
     document.getElementById('newFileExtension').value = '.cpp';
 }
 
+// Helper function to set button loading state
+function setButtonLoading(buttonId, isLoading) {
+    const button = document.getElementById(buttonId);
+    if (!button) return;
+
+    if (isLoading) {
+        button.disabled = true;
+        button.style.opacity = '0.6';
+        button.style.cursor = 'not-allowed';
+        button.dataset.originalText = button.textContent || button.innerHTML;
+        // Add loading indicator
+        if (buttonId === 'createFileSubmitBtn') {
+            button.innerHTML = '<span class="loading-spinner" style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;"></span>Creating...';
+        } else if (buttonId === 'linkDriveBtn') {
+            button.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="animation:spin 0.8s linear infinite;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> Connecting...';
+        }
+    } else {
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.style.cursor = 'pointer';
+        if (button.dataset.originalText) {
+            button.innerHTML = button.dataset.originalText;
+            delete button.dataset.originalText;
+        }
+    }
+}
+
 // Create file with name and extension
 async function createFile() {
+    // Prevent multiple simultaneous create operations
+    if (driveState.operationInProgress) {
+        showNotification('Please wait for the current operation to complete', 'info');
+        return;
+    }
+
     const fileName = document.getElementById('newFileName').value.trim();
     const extension = document.getElementById('newFileExtension').value;
 
@@ -504,15 +883,23 @@ async function createFile() {
         return;
     }
 
-    if (!driveState.folderId) {
-        await findOrCreateFolder();
-    }
+    // Set loading state
+    driveState.operationInProgress = true;
+    setButtonLoading('createFileSubmitBtn', true);
 
+    // Use try-finally to ensure flag is always reset
     try {
+        if (!driveState.folderId) {
+            await findOrCreateRootFolder();
+            if (!driveState.currentProjectId) {
+                await loadProjects();
+            }
+        }
+
         const token = gapi.client.getToken();
         if (!token) {
             showNotification('Not authenticated. Please reconnect to Google Drive.', 'error');
-            return;
+            return; // finally block will reset the flag
         }
 
         const boundary = '-------314159265358979323846';
@@ -521,7 +908,7 @@ async function createFile() {
 
         const metadata = {
             name: fullFileName,
-            parents: [driveState.folderId]
+            parents: [projectFolderId]
         };
 
         const multipartRequestBody =
@@ -564,6 +951,10 @@ async function createFile() {
     } catch (error) {
         console.error('Error creating file:', error);
         showNotification('Failed to create file', 'error');
+    } finally {
+        // Reset loading state
+        driveState.operationInProgress = false;
+        setButtonLoading('createFileSubmitBtn', false);
     }
 }
 
@@ -583,7 +974,17 @@ async function handleFileUpload(event) {
     }
 
     if (!driveState.folderId) {
-        await findOrCreateFolder();
+        await findOrCreateRootFolder();
+    }
+
+    // Ensure we have a current project folder
+    if (!driveState.currentProjectId) {
+        await loadProjects();
+    }
+    const projectFolderId = driveState.currentProjectId || await findOrCreateProjectFolder('Default Project');
+    if (!projectFolderId) {
+        showNotification('Failed to access project folder', 'error');
+        return;
     }
 
     try {
@@ -602,9 +1003,15 @@ async function handleFileUpload(event) {
                 const delimiter = '\r\n--' + boundary + '\r\n';
                 const closeDelim = '\r\n--' + boundary + '--';
 
+                // Get current project folder
+                if (!driveState.currentProjectId) {
+                    await loadProjects();
+                }
+                const projectFolderId = driveState.currentProjectId || await findOrCreateProjectFolder('Default Project');
+
                 const metadata = {
                     name: file.name,
-                    parents: [driveState.folderId]
+                    parents: [projectFolderId]
                 };
 
                 const multipartRequestBody =
@@ -779,20 +1186,113 @@ function updateActiveFile(fileId) {
 // Unlink Google Drive
 function unlinkDrive() {
     if (confirm('Are you sure you want to unlink Google Drive? You will need to reconnect to access your files.')) {
-        if (gapi.client.getToken()) {
-            google.accounts.oauth2.revoke(gapi.client.getToken().access_token);
-            gapi.client.setToken('');
+        try {
+            // Revoke token if available
+            if (gapi.client && gapi.client.getToken()) {
+                const token = gapi.client.getToken();
+                if (token && token.access_token) {
+                    google.accounts.oauth2.revoke(token.access_token);
+                }
+                gapi.client.setToken('');
+            }
+        } catch (error) {
+            console.error('Error revoking token:', error);
+            // Continue with unlinking even if revocation fails
         }
 
+        // Reset all state
         driveState.isSignedIn = false;
         driveState.currentUser = null;
         driveState.currentFile = null;
         driveState.files = [];
         driveState.folderId = null;
+        driveState.currentProjectId = null;
+        driveState.currentProjectName = null;
+        driveState.projects = [];
         driveState.hasUnsavedChanges = false;
+        driveState.operationInProgress = false;
+        driveState.folderOperationInProgress = false;
 
+        // Clear editor and reset to default code
+        if (driveState.editor) {
+            const currentLanguage = document.getElementById('languageSelect')?.value || '54';
+            // Get default example code - use the same as compiler.js EXAMPLE_CODE
+            let defaultCode;
+            if (currentLanguage === '50') {
+                // C code (matches compiler.js EXAMPLE_CODE['50'])
+                defaultCode = `#include <stdio.h>
+
+int main() {
+    printf("Hello, World!\\n");
+    printf("Welcome to B.Tech Walleh Online Compiler\\n");
+    
+    int num1 = 10, num2 = 20;
+    int sum = num1 + num2;
+    
+    printf("Sum of %d and %d is: %d\\n", num1, num2, sum);
+    
+    return 0;
+}`;
+            } else {
+                // C++ code (matches compiler.js EXAMPLE_CODE['54'])
+                defaultCode = `#include <iostream>
+using namespace std;
+
+int main() {
+    cout << "Hello, World!" << endl;
+    cout << "Welcome to B.Tech Walleh Online Compiler" << endl;
+    
+    int num1 = 10, num2 = 20;
+    int sum = num1 + num2;
+    
+    cout << "Sum of " << num1 << " and " << num2 << " is: " << sum << endl;
+    
+    return 0;
+}`;
+            }
+            driveState.editor.setValue(defaultCode);
+            if (driveState.editor.clearHistory) {
+                driveState.editor.clearHistory(); // Clear undo history if available
+            }
+        }
+
+        // Clear file list
+        const fileList = document.getElementById('fileList');
+        if (fileList) {
+            fileList.innerHTML = '<div class="file-list-empty">No files found. Connect to Google Drive to access files.</div>';
+        }
+
+        // Reset button loading state and restore original text
+        const linkBtn = document.getElementById('linkDriveBtn');
+        if (linkBtn) {
+            // Reset loading state
+            setButtonLoading('linkDriveBtn', false);
+
+            // If originalText wasn't saved (button was in loading state when unlink happened)
+            // or if button still shows "Connecting...", restore original HTML
+            if (!linkBtn.dataset.originalText || linkBtn.innerHTML.includes('Connecting')) {
+                linkBtn.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7.71 13.12l-2.83 2.83 3.17 3.17L11 16.34l-3.29-3.22zm9.58-4.95l-2.83-2.83-3.17 3.17L12 7.66l3.29 3.22zM22 12c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2s10 4.48 10 10zm-2 0c0-4.42-3.58-8-8-8s-8 3.58-8 8 3.58 8 8 8 8-3.58 8-8z" />
+                    </svg>
+                    Link Google Drive
+                `;
+                linkBtn.disabled = false;
+                linkBtn.style.opacity = '1';
+                linkBtn.style.cursor = 'pointer';
+            }
+        }
+
+        // Update UI
         updateUserUI();
         updateFileInfo();
+
+        // Hide file manager
+        const fileManager = document.getElementById('driveFileManager');
+        if (fileManager) {
+            fileManager.style.display = 'none';
+        }
+
         showNotification('Disconnected from Google Drive', 'info');
     }
 }
@@ -859,12 +1359,63 @@ document.addEventListener('DOMContentLoaded', function () {
     initializeGoogleAPIs();
 
     // Event listeners
-    document.getElementById('linkDriveBtn').addEventListener('click', () => {
-        if (!tokenClient) {
-            showNotification('Google APIs not loaded. Please check your API credentials.', 'error');
+    document.getElementById('linkDriveBtn').addEventListener('click', async () => {
+        // Prevent multiple clicks
+        if (driveState.operationInProgress) {
+            showNotification('Please wait for the current operation to complete', 'info');
             return;
         }
-        tokenClient.requestAccessToken({ prompt: 'consent' });
+
+        // Check if APIs are loaded
+        if (!driveState.gapiLoaded) {
+            showNotification('Google APIs are still loading. Please wait a moment and try again.', 'info');
+            return;
+        }
+
+        // Wait for Google Identity Services to be ready (with timeout)
+        if (!tokenClient || !driveState.gisLoaded) {
+            showNotification('Initializing Google Drive connection...', 'info');
+
+            // Wait up to 5 seconds for Google Identity Services to load
+            let attempts = 0;
+            while ((!tokenClient || !driveState.gisLoaded) && attempts < 50) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+
+                // Try to initialize if google.accounts is now available
+                if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2 && !tokenClient) {
+                    try {
+                        tokenClient = google.accounts.oauth2.initTokenClient({
+                            client_id: DRIVE_CONFIG.CLIENT_ID,
+                            scope: DRIVE_CONFIG.SCOPES,
+                            callback: handleTokenResponse,
+                        });
+                        driveState.gisLoaded = true;
+                        break;
+                    } catch (error) {
+                        console.error('Error initializing token client:', error);
+                    }
+                }
+            }
+
+            if (!tokenClient || !driveState.gisLoaded) {
+                showNotification('Google Drive connection failed to initialize. Please refresh the page and try again.', 'error');
+                driveState.operationInProgress = false;
+                return;
+            }
+        }
+
+        driveState.operationInProgress = true;
+        setButtonLoading('linkDriveBtn', true);
+
+        try {
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        } catch (error) {
+            console.error('Error requesting access token:', error);
+            showNotification('Failed to connect to Google Drive. Please try again.', 'error');
+            driveState.operationInProgress = false;
+            setButtonLoading('linkDriveBtn', false);
+        }
     });
 
     document.getElementById('unlinkDriveBtn').addEventListener('click', unlinkDrive);
@@ -882,6 +1433,21 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('createFileModalClose').addEventListener('click', () => {
         document.getElementById('createFileModal').style.display = 'none';
     });
+
+    // Project management event listeners
+    const projectSelect = document.getElementById('projectSelect');
+    if (projectSelect) {
+        projectSelect.addEventListener('change', (e) => {
+            if (e.target.value) {
+                switchProject(e.target.value);
+            }
+        });
+    }
+
+    const createProjectBtn = document.getElementById('createProjectBtn');
+    if (createProjectBtn) {
+        createProjectBtn.addEventListener('click', createProject);
+    }
 
     // Track editor changes - wait for editor to be available
     const checkEditor = setInterval(() => {

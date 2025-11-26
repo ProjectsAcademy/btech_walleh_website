@@ -4,19 +4,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Course Details - B.Tech Walleh</title>
-    <link rel="stylesheet" href="styles.css">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>About Us - B.Tech Walleh</title>
+    <link rel="stylesheet" href="../css/styles.css">
 </head>
 
 <body>
     <header>
         <nav>
             <div class="logo">
-                <h1>B.Tech Walleh</h1>
+                <a href="../index.html">
+                    <h1>B.Tech Walleh</h1>
+                </a>
             </div>
             <ul class="nav-links">
-                <li><a href="index.html">Home</a></li>
-                <li><a href="about.html">About Us</a></li>
+                <li><a href="../index.html">Home</a></li>
+                <li><a href="about.html" class="active">About Us</a></li>
                 <li><a href="courses.html">Courses</a></li>
                 <li><a href="compiler.html">Compiler</a></li>
             </ul>
@@ -26,36 +31,36 @@
     <main>
         <section class="page-header">
             <div class="container">
-                <a href="courses.html" class="back-link">← Back to Courses</a>
-                <h1 id="course-title">Course Title</h1>
+                <h1>About Us</h1>
             </div>
         </section>
 
-        <section class="course-detail">
+        <section class="content">
             <div class="container">
-                <div class="course-detail-content">
-                    <div class="course-info">
-                        <h2>Course Overview</h2>
-                        <p id="course-description">Course description will be loaded here.</p>
+                <div class="about-content">
+                    <h2>Our Mission</h2>
+                    <p>B.Tech Walleh is dedicated to providing high-quality technical training that equips students with
+                        the skills and knowledge needed to excel in today's technology-driven world. We believe in
+                        practical, hands-on learning that prepares our students for real-world challenges.</p>
 
-                        <h2>What You'll Learn</h2>
-                        <ul id="course-objectives">
-                            <li>Learning objective 1</li>
-                            <li>Learning objective 2</li>
-                            <li>Learning objective 3</li>
-                        </ul>
+                    <h2>Who We Are</h2>
+                    <p>We are a technical training center focused on delivering comprehensive education in various
+                        technology fields. Our team consists of experienced professionals who are passionate about
+                        teaching and helping students achieve their career goals.</p>
 
-                        <h2>Course Duration</h2>
-                        <p id="course-duration">Duration information will be displayed here.</p>
+                    <h2>What We Offer</h2>
+                    <ul>
+                        <li>Comprehensive technical courses</li>
+                        <li>Experienced instructors</li>
+                        <li>Practical, project-based learning</li>
+                        <li>Career guidance and support</li>
+                        <li>Flexible learning schedules</li>
+                    </ul>
 
-                        <h2>Prerequisites</h2>
-                        <p id="course-prerequisites">Prerequisites will be listed here.</p>
-
-                        <h2>Course Curriculum</h2>
-                        <div id="course-curriculum">
-                            <p>Curriculum details will be shown here.</p>
-                        </div>
-                    </div>
+                    <h2>Our Values</h2>
+                    <p>At B.Tech Walleh, we value excellence, integrity, and student success. We are committed to
+                        maintaining high standards in education and providing a supportive learning environment for all
+                        our students.</p>
                 </div>
             </div>
         </section>
@@ -80,9 +85,10 @@
                 <div class="footer-quick-links">
                     <h4>Quick Links</h4>
                     <ul>
-                        <li><a href="index.html">Home</a></li>
+                        <li><a href="../index.html">Home</a></li>
                         <li><a href="about.html">About Us</a></li>
                         <li><a href="courses.html">Courses</a></li>
+                        <li><a href="compiler.html">Compiler</a></li>
                     </ul>
                 </div>
                 <div class="footer-social-section">
@@ -120,7 +126,7 @@
 
     <!-- Floating Contact Icon -->
     <div class="floating-contact-icon" id="floatingContactIcon">
-        <img src="images/contact-icon.png" alt="Contact Us" class="contact-icon-img">
+        <img src="../images/contact-icon.png" alt="Contact Us" class="contact-icon-img">
     </div>
 
     <!-- Contact Popup -->
@@ -205,9 +211,8 @@
         </div>
     </div>
 
-    <script src="course-detail.js"></script>
-    <script src="callback-modal.js"></script>
-    <script src="floating-contact.js"></script>
+    <script src="../js/callback-modal.js"></script>
+    <script src="../js/floating-contact.js"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <script type="text/javascript">
         (function () {

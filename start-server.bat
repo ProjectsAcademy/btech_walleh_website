@@ -6,7 +6,7 @@ echo.
 echo This will start a web server on http://localhost:8000
 echo.
 echo After starting, open your browser and go to:
-echo   http://localhost:8000/compiler.html
+echo   http://localhost:8000/pages/compiler.html
 echo.
 echo Press Ctrl+C to stop the server when done.
 echo.

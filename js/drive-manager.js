@@ -32,6 +32,8 @@ let driveState = {
     currentProjectId: null, // Current project folder ID
     currentProjectName: null, // Current project name
     projects: [], // List of available projects
+    directories: [], // List of directories when viewing root
+    viewingRoot: false, // Whether we're viewing root directories
     gapiLoaded: false,
     gisLoaded: false,
     editor: null,
@@ -158,9 +160,7 @@ function handleTokenResponse(response) {
         try {
             await getUserInfo();
             await findOrCreateRootFolder();
-            if (!driveState.currentProjectId) {
-                await loadProjects();
-            }
+            await loadProjects(); // Load projects but don't auto-select
             showNotification('Successfully connected to Google Drive', 'success');
         } catch (error) {
             console.error('Error during connection setup:', error);
@@ -364,20 +364,7 @@ async function loadProjects() {
         });
 
         driveState.projects = response.result.files || [];
-
-        // If no projects exist, create a default one
-        if (driveState.projects.length === 0) {
-            await findOrCreateProjectFolder('Default Project');
-            driveState.projects = [{
-                id: driveState.currentProjectId,
-                name: 'Default Project'
-            }];
-        } else if (!driveState.currentProjectId) {
-            // Use first project as default
-            driveState.currentProjectId = driveState.projects[0].id;
-            driveState.currentProjectName = driveState.projects[0].name;
-        }
-
+        // Don't auto-select any project - user must select manually
         updateProjectSelector();
         return driveState.projects;
     } catch (error) {
@@ -394,19 +381,30 @@ function updateProjectSelector() {
 
     projectSelect.innerHTML = '';
 
-    if (driveState.projects.length === 0) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = 'No projects';
-        projectSelect.appendChild(option);
-        return;
+    // Always add "Select Project" as first option
+    const selectOption = document.createElement('option');
+    selectOption.value = '';
+    selectOption.textContent = 'Select Project';
+    if (!driveState.currentProjectId && !driveState.viewingRoot) {
+        selectOption.selected = true;
     }
+    projectSelect.appendChild(selectOption);
 
+    // Add "/root" option to view root directories
+    const rootOption = document.createElement('option');
+    rootOption.value = '/root';
+    rootOption.textContent = '/root';
+    if (driveState.viewingRoot) {
+        rootOption.selected = true;
+    }
+    projectSelect.appendChild(rootOption);
+
+    // Add all project folders
     driveState.projects.forEach(project => {
         const option = document.createElement('option');
         option.value = project.id;
         option.textContent = project.name;
-        if (project.id === driveState.currentProjectId) {
+        if (project.id === driveState.currentProjectId && !driveState.viewingRoot) {
             option.selected = true;
         }
         projectSelect.appendChild(option);
@@ -458,16 +456,211 @@ async function createProject() {
     }
 }
 
-// Switch to a different project
+// Load directories from root folder
+async function loadRootDirectories() {
+    if (!driveState.folderId) {
+        await findOrCreateRootFolder();
+    }
+
+    try {
+        const response = await gapi.client.drive.files.list({
+            q: `'${driveState.folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+            fields: 'files(id, name, modifiedTime)',
+            orderBy: 'name',
+            spaces: 'drive'
+        });
+
+        driveState.directories = response.result.files || [];
+        return driveState.directories;
+    } catch (error) {
+        console.error('Error loading root directories:', error);
+        showNotification('Failed to load directories', 'error');
+        return [];
+    }
+}
+
+// Switch to a different project or view root
 async function switchProject(projectId) {
-    if (!projectId || projectId === driveState.currentProjectId) {
+    // Handle empty selection (Select Project)
+    if (!projectId || projectId === '') {
+        driveState.currentProjectId = null;
+        driveState.currentProjectName = null;
+        driveState.viewingRoot = false;
+        driveState.currentFile = null;
+        driveState.hasUnsavedChanges = false;
+        driveState.files = [];
+        driveState.directories = [];
+
+        // Clear editor
+        if (driveState.editor) {
+            const currentLanguage = document.getElementById('languageSelect')?.value || '54';
+            let defaultCode;
+            if (currentLanguage === '50') {
+                defaultCode = `#include <stdio.h>
+
+int main() {
+    printf("Hello, World!\\n");
+    printf("Welcome to B.Tech Walleh Online Compiler\\n");
+    
+    int num1 = 10, num2 = 20;
+    int sum = num1 + num2;
+    
+    printf("Sum of %d and %d is: %d\\n", num1, num2, sum);
+    
+    return 0;
+}`;
+            } else {
+                defaultCode = `#include <iostream>
+using namespace std;
+
+int main() {
+    cout << "Hello, World!" << endl;
+    cout << "Welcome to B.Tech Walleh Online Compiler" << endl;
+    
+    int num1 = 10, num2 = 20;
+    int sum = num1 + num2;
+    
+    cout << "Sum of " << num1 << " and " << num2 << " is: " << sum << endl;
+    
+    return 0;
+}`;
+            }
+            driveState.editor.setValue(defaultCode);
+        }
+
+        document.getElementById('fileList').innerHTML = '<div class="file-list-empty">No project selected. Please select a project or /root.</div>';
+        updateFileInfo();
+        return;
+    }
+
+    // Handle /root option - show directories
+    if (projectId === '/root') {
+        // Check for unsaved changes
+        if (driveState.hasUnsavedChanges && driveState.currentFile) {
+            if (!confirm('You have unsaved changes. Do you want to discard them and view root?')) {
+                updateProjectSelector();
+                return;
+            }
+        }
+
+        driveState.viewingRoot = true;
+        driveState.currentProjectId = null;
+        driveState.currentProjectName = null;
+        driveState.currentFile = null;
+        driveState.hasUnsavedChanges = false;
+
+        // Clear editor
+        if (driveState.editor) {
+            const currentLanguage = document.getElementById('languageSelect')?.value || '54';
+            let defaultCode;
+            if (currentLanguage === '50') {
+                defaultCode = `#include <stdio.h>
+
+int main() {
+    printf("Hello, World!\\n");
+    printf("Welcome to B.Tech Walleh Online Compiler\\n");
+    
+    int num1 = 10, num2 = 20;
+    int sum = num1 + num2;
+    
+    printf("Sum of %d and %d is: %d\\n", num1, num2, sum);
+    
+    return 0;
+}`;
+            } else {
+                defaultCode = `#include <iostream>
+using namespace std;
+
+int main() {
+    cout << "Hello, World!" << endl;
+    cout << "Welcome to B.Tech Walleh Online Compiler" << endl;
+    
+    int num1 = 10, num2 = 20;
+    int sum = num1 + num2;
+    
+    cout << "Sum of " << num1 << " and " << num2 << " is: " << sum << endl;
+    
+    return 0;
+}`;
+            }
+            driveState.editor.setValue(defaultCode);
+        }
+
+        await loadRootDirectories();
+        displayDirectories(driveState.directories);
+        updateFileInfo();
+        return;
+    }
+
+    // Handle directory selection (when clicking on a directory from root view)
+    // Check if this is a directory ID from the directories list
+    const directory = driveState.directories.find(d => d.id === projectId);
+    if (directory) {
+        // Check for unsaved changes
+        if (driveState.hasUnsavedChanges && driveState.currentFile) {
+            if (!confirm('You have unsaved changes. Do you want to discard them and open this directory?')) {
+                updateProjectSelector();
+                return;
+            }
+        }
+
+        driveState.viewingRoot = false;
+        driveState.currentProjectId = projectId;
+        driveState.currentProjectName = directory.name;
+        driveState.currentFile = null;
+        driveState.hasUnsavedChanges = false;
+
+        // Clear editor
+        if (driveState.editor) {
+            const currentLanguage = document.getElementById('languageSelect')?.value || '54';
+            let defaultCode;
+            if (currentLanguage === '50') {
+                defaultCode = `#include <stdio.h>
+
+int main() {
+    printf("Hello, World!\\n");
+    printf("Welcome to B.Tech Walleh Online Compiler\\n");
+    
+    int num1 = 10, num2 = 20;
+    int sum = num1 + num2;
+    
+    printf("Sum of %d and %d is: %d\\n", num1, num2, sum);
+    
+    return 0;
+}`;
+            } else {
+                defaultCode = `#include <iostream>
+using namespace std;
+
+int main() {
+    cout << "Hello, World!" << endl;
+    cout << "Welcome to B.Tech Walleh Online Compiler" << endl;
+    
+    int num1 = 10, num2 = 20;
+    int sum = num1 + num2;
+    
+    cout << "Sum of " << num1 << " and " << num2 << " is: " << sum << endl;
+    
+    return 0;
+}`;
+            }
+            driveState.editor.setValue(defaultCode);
+        }
+
+        updateProjectSelector();
+        await loadFiles();
+        showNotification(`Opened directory "${directory.name}"`, 'info');
+        return;
+    }
+
+    // Handle regular project selection
+    if (projectId === driveState.currentProjectId) {
         return;
     }
 
     // Check for unsaved changes
     if (driveState.hasUnsavedChanges && driveState.currentFile) {
         if (!confirm('You have unsaved changes. Do you want to discard them and switch project?')) {
-            // Reset selector to current project
             updateProjectSelector();
             return;
         }
@@ -480,6 +673,7 @@ async function switchProject(projectId) {
         return;
     }
 
+    driveState.viewingRoot = false;
     driveState.currentProjectId = projectId;
     driveState.currentProjectName = project.name;
     driveState.currentFile = null;
@@ -527,19 +721,14 @@ int main() {
     showNotification(`Switched to project "${project.name}"`, 'info');
 }
 
-// Load files from current project folder
+// Load files from current project folder or directory
 async function loadFiles() {
     if (!driveState.folderId) {
         await findOrCreateRootFolder();
     }
 
-    // Ensure we have a current project
     if (!driveState.currentProjectId) {
-        await loadProjects();
-    }
-
-    if (!driveState.currentProjectId) {
-        document.getElementById('fileList').innerHTML = '<div class="file-list-empty">No project selected. Please create a project.</div>';
+        document.getElementById('fileList').innerHTML = '<div class="file-list-empty">No project or directory selected.</div>';
         return;
     }
 
@@ -566,6 +755,43 @@ async function loadFiles() {
         showNotification('Failed to load files from Drive', 'error');
         document.getElementById('fileList').innerHTML = '<div class="file-list-empty">Error loading files</div>';
     }
+}
+
+// Display directories in the list (when viewing root)
+function displayDirectories(directories) {
+    const fileList = document.getElementById('fileList');
+
+    if (directories.length === 0) {
+        fileList.innerHTML = '<div class="file-list-empty">No directories found in root.</div>';
+        return;
+    }
+
+    // Apply search filter
+    const searchTerm = document.getElementById('fileSearch').value.toLowerCase();
+    let filteredDirs = directories.filter(dir =>
+        dir.name.toLowerCase().includes(searchTerm)
+    );
+
+    // Sort by name
+    filteredDirs.sort((a, b) => a.name.localeCompare(b.name));
+
+    fileList.innerHTML = filteredDirs.map(dir => {
+        const modifiedDate = new Date(dir.modifiedTime).toLocaleDateString();
+
+        return `
+            <div class="file-item" data-file-id="${dir.id}" data-is-directory="true">
+                <div class="file-item-info" onclick="openDirectory('${dir.id}')">
+                    <svg class="file-icon" viewBox="0 0 24 24" fill="currentColor" style="color: #ffc107;">
+                        <path d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
+                    </svg>
+                    <div class="file-details">
+                        <div class="file-name">${escapeHtml(dir.name)}</div>
+                        <div class="file-meta">Directory • Modified: ${modifiedDate}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 // Display files in the list
@@ -634,6 +860,11 @@ function displayFiles(files) {
             </div>
         `;
     }).join('');
+}
+
+// Open directory (when clicking on a directory from root view)
+async function openDirectory(directoryId) {
+    await switchProject(directoryId);
 }
 
 // Open file from Drive
@@ -766,11 +997,19 @@ async function saveFile() {
             const delimiter = '\r\n--' + boundary + '\r\n';
             const closeDelim = '\r\n--' + boundary + '--';
 
-            // Get current project folder
+            // Check if a project/directory is selected
             if (!driveState.currentProjectId) {
-                await loadProjects();
+                showNotification('Please select a project or directory first', 'error');
+                return;
             }
-            const projectFolderId = driveState.currentProjectId || await findOrCreateProjectFolder('Default Project');
+
+            // Don't allow saving files when viewing root
+            if (driveState.viewingRoot) {
+                showNotification('Please select a project or directory to save files', 'error');
+                return;
+            }
+
+            const projectFolderId = driveState.currentProjectId;
 
             const metadata = {
                 name: fullFileName,
@@ -891,9 +1130,18 @@ async function createFile() {
     try {
         if (!driveState.folderId) {
             await findOrCreateRootFolder();
-            if (!driveState.currentProjectId) {
-                await loadProjects();
-            }
+        }
+
+        // Check if a project/directory is selected
+        if (!driveState.currentProjectId) {
+            showNotification('Please select a project or directory first', 'error');
+            return; // finally block will reset the flag
+        }
+
+        // Don't allow creating files when viewing root
+        if (driveState.viewingRoot) {
+            showNotification('Please select a project or directory to create files', 'error');
+            return; // finally block will reset the flag
         }
 
         const token = gapi.client.getToken();
@@ -908,7 +1156,7 @@ async function createFile() {
 
         const metadata = {
             name: fullFileName,
-            parents: [projectFolderId]
+            parents: [driveState.currentProjectId]
         };
 
         const multipartRequestBody =
@@ -977,15 +1225,19 @@ async function handleFileUpload(event) {
         await findOrCreateRootFolder();
     }
 
-    // Ensure we have a current project folder
+    // Check if a project/directory is selected
     if (!driveState.currentProjectId) {
-        await loadProjects();
-    }
-    const projectFolderId = driveState.currentProjectId || await findOrCreateProjectFolder('Default Project');
-    if (!projectFolderId) {
-        showNotification('Failed to access project folder', 'error');
+        showNotification('Please select a project or directory first', 'error');
         return;
     }
+
+    // Don't allow uploading files when viewing root
+    if (driveState.viewingRoot) {
+        showNotification('Please select a project or directory to upload files', 'error');
+        return;
+    }
+
+    const projectFolderId = driveState.currentProjectId;
 
     try {
         const token = gapi.client.getToken();
@@ -1003,11 +1255,8 @@ async function handleFileUpload(event) {
                 const delimiter = '\r\n--' + boundary + '\r\n';
                 const closeDelim = '\r\n--' + boundary + '--';
 
-                // Get current project folder
-                if (!driveState.currentProjectId) {
-                    await loadProjects();
-                }
-                const projectFolderId = driveState.currentProjectId || await findOrCreateProjectFolder('Default Project');
+                // Use current project folder
+                const projectFolderId = driveState.currentProjectId;
 
                 const metadata = {
                     name: file.name,
@@ -1209,6 +1458,8 @@ function unlinkDrive() {
         driveState.currentProjectId = null;
         driveState.currentProjectName = null;
         driveState.projects = [];
+        driveState.directories = [];
+        driveState.viewingRoot = false;
         driveState.hasUnsavedChanges = false;
         driveState.operationInProgress = false;
         driveState.folderOperationInProgress = false;
@@ -1423,8 +1674,20 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('createFileBtn').addEventListener('click', createFilePrompt);
     document.getElementById('uploadFileBtn').addEventListener('click', uploadFile);
     document.getElementById('fileUploadInput').addEventListener('change', handleFileUpload);
-    document.getElementById('fileSearch').addEventListener('input', () => displayFiles(driveState.files));
-    document.getElementById('fileSort').addEventListener('change', () => displayFiles(driveState.files));
+    document.getElementById('fileSearch').addEventListener('input', () => {
+        if (driveState.viewingRoot) {
+            displayDirectories(driveState.directories);
+        } else {
+            displayFiles(driveState.files);
+        }
+    });
+    document.getElementById('fileSort').addEventListener('change', () => {
+        if (driveState.viewingRoot) {
+            displayDirectories(driveState.directories);
+        } else {
+            displayFiles(driveState.files);
+        }
+    });
     document.getElementById('saveFileBtn').addEventListener('click', saveFile);
     document.getElementById('createFileSubmitBtn').addEventListener('click', createFile);
     document.getElementById('createFileCancelBtn').addEventListener('click', () => {
@@ -1469,6 +1732,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 // Export functions for global access
 window.openFile = openFile;
+window.openDirectory = openDirectory;
 window.downloadFile = downloadFile;
 window.renameFilePrompt = renameFilePrompt;
 window.deleteFilePrompt = deleteFilePrompt;

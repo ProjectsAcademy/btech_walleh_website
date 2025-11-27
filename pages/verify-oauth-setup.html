@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Setup Verification - B.Tech Walleh</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #e0e0e0;
+        }
+
+        .status-box {
+            background: #2a2a2a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            font-weight: bold;
+            color: #ffc107;
+        }
+
+        .status-value {
+            color: #4caf50;
+        }
+
+        .status-value.error {
+            color: #f44336;
+        }
+
+        .status-value.warning {
+            color: #ff9800;
+        }
+
+        .test-btn {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: #121212;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 20px 0;
+        }
+
+        .test-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+        }
+
+        .log-box {
+            background: #121212;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+        }
+
+        .log-entry.success {
+            color: #4caf50;
+        }
+
+        .log-entry.error {
+            color: #f44336;
+        }
+
+        .log-entry.info {
+            color: #2196f3;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔍 Google OAuth Setup Verification</h1>
+
+    <div class="status-box">
+        <h2>Configuration Status</h2>
+        <div class="status-item">
+            <span class="status-label">Client ID in localStorage:</span>
+            <span class="status-value" id="clientIdStatus">Checking...</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">API Key in localStorage:</span>
+            <span class="status-value" id="apiKeyStatus">Checking...</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Client ID in code:</span>
+            <span class="status-value" id="hardcodedClientId">Checking...</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Google API Scripts Loaded:</span>
+            <span class="status-value" id="scriptsStatus">Checking...</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Current Domain:</span>
+            <span class="status-value" id="domainStatus">Checking...</span>
+        </div>
+    </div>
+
+    <button class="test-btn" onclick="testOAuthConnection()">Test OAuth Connection</button>
+
+    <div class="status-box">
+        <h2>Test Results</h2>
+        <div id="testResults" class="log-box">
+            <div class="log-entry info">Click "Test OAuth Connection" to verify your setup...</div>
+        </div>
+    </div>
+
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+        const CLIENT_ID_FROM_CODE = '197129445780-ci0d4s2pbkk53784fuli7us95qhmm8ji.apps.googleusercontent.com';
+
+        function addLog(message, type = 'info') {
+            const logBox = document.getElementById('testResults');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function checkConfiguration() {
+            // Check localStorage
+            const savedClientId = localStorage.getItem('gdrive_client_id');
+            const savedApiKey = localStorage.getItem('gdrive_api_key');
+
+            document.getElementById('clientIdStatus').textContent = savedClientId ? '✅ Found' : '❌ Not Found';
+            document.getElementById('clientIdStatus').className = savedClientId ? 'status-value' : 'status-value error';
+
+            document.getElementById('apiKeyStatus').textContent = savedApiKey ? '✅ Found' : '❌ Not Found';
+            document.getElementById('apiKeyStatus').className = savedApiKey ? 'status-value' : 'status-value error';
+
+            // Check hardcoded value
+            document.getElementById('hardcodedClientId').textContent = CLIENT_ID_FROM_CODE ? '✅ Found' : '❌ Not Found';
+
+            // Check scripts
+            const scriptsLoaded = typeof gapi !== 'undefined' && typeof google !== 'undefined';
+            document.getElementById('scriptsStatus').textContent = scriptsLoaded ? '✅ Loaded' : '⏳ Loading...';
+            document.getElementById('scriptsStatus').className = scriptsLoaded ? 'status-value' : 'status-value warning';
+
+            // Check domain
+            const currentDomain = window.location.origin;
+            document.getElementById('domainStatus').textContent = currentDomain;
+
+            // CRITICAL: Check if using file:// protocol
+            if (currentDomain === 'null' || currentDomain.startsWith('file://')) {
+                document.getElementById('domainStatus').className = 'status-value error';
+                addLog('❌ CRITICAL ERROR: Page is opened via file:// protocol!', 'error');
+                addLog('Google OAuth does NOT work with file:// protocol.', 'error');
+                addLog('SOLUTION: You must run a local web server.', 'error');
+                addLog('', 'info');
+                addLog('Quick fix options:', 'info');
+                addLog('1. Python: python -m http.server 8000', 'info');
+                addLog('2. Node.js: npx http-server', 'info');
+                addLog('3. VS Code: Install "Live Server" extension', 'info');
+                addLog('4. Then open: http://localhost:8000/compiler.html', 'info');
+                return; // Don't continue if file://
+            }
+
+            // Check if domain matches authorized origins
+            const authorizedOrigins = [
+                'https://btechwalleh.com',
+                'https://dev-btechwalleh.netlify.app',
+                'http://localhost'
+            ];
+            const isAuthorized = authorizedOrigins.some(origin => currentDomain === origin || currentDomain.startsWith(origin));
+            if (!isAuthorized) {
+                addLog(`⚠️ WARNING: Current domain "${currentDomain}" may not be in authorized JavaScript origins!`, 'error');
+                addLog('Make sure this domain is added in Google Cloud Console.', 'error');
+            } else {
+                addLog(`✅ Domain "${currentDomain}" appears to be authorized`, 'success');
+            }
+
+            if (savedClientId) {
+                addLog(`Client ID found: ${savedClientId.substring(0, 30)}...`, 'success');
+            } else {
+                addLog('❌ Client ID not found in localStorage', 'error');
+            }
+
+            if (savedApiKey) {
+                // Check API Key format
+                if (savedApiKey.startsWith('GOCSPX-')) {
+                    addLog('❌ WARNING: API Key looks like an OAuth secret (starts with GOCSPX-)', 'error');
+                    addLog('API Keys should start with "AIza..." - Check Google Cloud Console', 'error');
+                } else if (savedApiKey.startsWith('AIza')) {
+                    addLog(`✅ API Key found: ${savedApiKey.substring(0, 20)}... (format looks correct)`, 'success');
+                } else {
+                    addLog(`⚠️ API Key found: ${savedApiKey.substring(0, 20)}... (unusual format)`, 'error');
+                }
+            } else {
+                addLog('❌ API Key not found in localStorage', 'error');
+            }
+        }
+
+        async function testOAuthConnection() {
+            const testResults = document.getElementById('testResults');
+            testResults.innerHTML = '';
+            addLog('Starting OAuth connection test...', 'info');
+
+            const savedClientId = localStorage.getItem('gdrive_client_id');
+            const savedApiKey = localStorage.getItem('gdrive_api_key');
+
+            if (!savedClientId || !savedApiKey) {
+                addLog('❌ Missing credentials in localStorage. Please set them first.', 'error');
+                addLog('Run in console: localStorage.setItem("gdrive_client_id", "YOUR_CLIENT_ID")', 'info');
+                addLog('Run in console: localStorage.setItem("gdrive_api_key", "YOUR_API_KEY")', 'info');
+                return;
+            }
+
+            addLog(`Using Client ID: ${savedClientId.substring(0, 30)}...`, 'info');
+
+            // Wait for Google APIs to load
+            if (typeof gapi === 'undefined' || typeof google === 'undefined') {
+                addLog('⏳ Waiting for Google APIs to load...', 'info');
+                await new Promise(resolve => {
+                    let attempts = 0;
+                    const checkInterval = setInterval(() => {
+                        attempts++;
+                        if (typeof gapi !== 'undefined' && typeof google !== 'undefined') {
+                            clearInterval(checkInterval);
+                            resolve();
+                        } else if (attempts > 50) {
+                            clearInterval(checkInterval);
+                            addLog('❌ Google APIs failed to load after 5 seconds', 'error');
+                            resolve();
+                        }
+                    }, 100);
+                });
+            }
+
+            if (typeof gapi === 'undefined' || typeof google === 'undefined') {
+                addLog('❌ Google APIs not loaded. Check your internet connection.', 'error');
+                return;
+            }
+
+            addLog('✅ Google APIs loaded successfully', 'success');
+
+            try {
+                // Validate API Key format first
+                if (savedApiKey.startsWith('GOCSPX-')) {
+                    addLog('❌ ERROR: API Key format is incorrect!', 'error');
+                    addLog('You are using an OAuth Client Secret, not an API Key.', 'error');
+                    addLog('API Keys should start with "AIza..." and come from "Credentials" → "API Key"', 'error');
+                    addLog('OAuth secrets (GOCSPX-...) are different from API Keys.', 'error');
+                    return;
+                }
+
+                // Initialize gapi client
+                addLog('Initializing Google API client...', 'info');
+                await gapi.load('client', async () => {
+                    try {
+                        await gapi.client.init({
+                            apiKey: savedApiKey,
+                            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+                        });
+                        addLog('✅ Google API client initialized', 'success');
+                    } catch (error) {
+                        addLog(`❌ Failed to initialize API client: ${error.message}`, 'error');
+                        if (error.message && error.message.includes('API discovery response missing required fields')) {
+                            addLog('', 'info');
+                            addLog('Troubleshooting steps:', 'info');
+                            addLog('1. Verify Google Drive API is enabled in Cloud Console', 'info');
+                            addLog('2. Check API Key restrictions allow Google Drive API', 'info');
+                            addLog('3. Verify API Key format (should start with AIza...)', 'info');
+                            addLog('4. Try creating a new unrestricted API Key for testing', 'info');
+                            addLog('', 'info');
+                            addLog('See FIX_API_DISCOVERY_ERROR.md for detailed help', 'info');
+                        }
+                        return;
+                    }
+                });
+
+                // Initialize token client
+                if (typeof google !== 'undefined' && google.accounts) {
+                    addLog('Initializing OAuth token client...', 'info');
+                    const tokenClient = google.accounts.oauth2.initTokenClient({
+                        client_id: savedClientId,
+                        scope: 'https://www.googleapis.com/auth/drive.file',
+                        callback: (response) => {
+                            if (response.error) {
+                                addLog(`❌ OAuth error: ${response.error}`, 'error');
+                                if (response.error === 'popup_closed_by_user') {
+                                    addLog('User closed the popup. This is normal if you cancelled.', 'info');
+                                } else if (response.error === 'access_denied') {
+                                    addLog('Access denied. Check your OAuth consent screen settings.', 'error');
+                                } else {
+                                    addLog('Check your Client ID and authorized JavaScript origins.', 'error');
+                                }
+                            } else {
+                                addLog('✅ OAuth token received successfully!', 'success');
+                                addLog('✅ Your OAuth setup is working correctly!', 'success');
+                            }
+                        },
+                    });
+
+                    addLog('✅ Token client initialized', 'success');
+                    addLog('Attempting to request access token (popup will open)...', 'info');
+                    addLog('⚠️ A popup will appear. Please authorize the application.', 'info');
+
+                    tokenClient.requestAccessToken({ prompt: 'consent' });
+                } else {
+                    addLog('❌ Google Identity Services not loaded', 'error');
+                }
+            } catch (error) {
+                addLog(`❌ Error during test: ${error.message}`, 'error');
+                console.error('Full error:', error);
+            }
+        }
+
+        // Check configuration on load
+        window.addEventListener('load', () => {
+            setTimeout(checkConfiguration, 500);
+        });
+    </script>
+</body>
+
+</html>

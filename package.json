@@ -1,0 +1,20 @@
+{
+  "name": "btech-walleh-website",
+  "version": "1.0.0",
+  "description": "B.Tech Walleh Online Compiler with Google Drive Integration",
+  "scripts": {
+    "obfuscate": "node scripts/obfuscate.js",
+    "build": "npm run obfuscate",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "compiler",
+    "online-compiler",
+    "google-drive"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.0"
+  }
+}

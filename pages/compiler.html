@@ -264,6 +264,45 @@
             font-size: 1.2rem;
         }
 
+        .drive-description {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #333;
+        }
+
+        .drive-description p {
+            color: #b0b0b0;
+            margin: 0.5rem 0;
+            line-height: 1.6;
+            font-size: 0.9rem;
+        }
+
+        .drive-description .benefits {
+            color: #fff;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .drive-description .beta-note {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: rgba(255, 193, 7, 0.1);
+            border-left: 3px solid #ffc107;
+            border-radius: 4px;
+            color: #ffc107;
+            font-size: 0.85rem;
+        }
+
+        .drive-description .beta-note a {
+            color: #ffc107;
+            text-decoration: underline;
+            font-weight: 600;
+        }
+
+        .drive-description .beta-note a:hover {
+            color: #ffd54f;
+        }
+
         .link-drive-btn {
             padding: 0.6rem 1.5rem;
             background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
@@ -859,13 +898,6 @@
     </header>
 
     <main>
-        <section class="page-header">
-            <div class="container">
-                <h1>Online Compiler</h1>
-                <p>Write, compile, and run C/C++ code directly in your browser</p>
-            </div>
-        </section>
-
         <section class="content">
             <div class="compiler-container">
                 <div class="info-banner" id="driveSetupBanner" style="display: none;">
@@ -878,7 +910,7 @@
                 <!-- Google Drive Connection Section -->
                 <div class="drive-connection-section" id="driveConnectionSection">
                     <div class="drive-connection-header">
-                        <h3>Google Drive Integration</h3>
+                        <h3>Cloud File Management</h3>
                         <div class="drive-user-info" id="driveUserInfo" style="display: none;">
                             <img id="userAvatar" src="" alt="User Avatar" class="user-avatar">
                             <div class="user-details">
@@ -894,6 +926,16 @@
                             </svg>
                             Link Google Drive
                         </button>
+                    </div>
+                    <div class="drive-description" id="driveDescription">
+                        <p class="benefits">✨ Access your code files anywhere, anytime, right at your fingertips!</p>
+                        <p>Save, manage, and sync your code projects directly to Google Drive. Work seamlessly across
+                            devices with automatic cloud synchronization.</p>
+                        <div class="beta-note">
+                            🚀 <strong>Beta Testing:</strong> Want early access to new features? <a
+                                href="mailto:developer@btechwalleh.com?subject=Beta Tester Request">Contact the
+                                developer</a> to become a beta tester!
+                        </div>
                     </div>
                 </div>
 

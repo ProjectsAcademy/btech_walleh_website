@@ -1,10 +1,10 @@
 // Google Drive Manager for C/C++ Files
 // Handles OAuth, file operations, and integration with the compiler editor
 
-// Configuration
+// Configuration - Credentials will be loaded from serverless function
 const DRIVE_CONFIG = {
-    CLIENT_ID: '197129445780-ci0d4s2pbkk53784fuli7us95qhmm8ji.apps.googleusercontent.com', // User needs to set their Google OAuth Client ID
-    API_KEY: 'AIzaSyAqH8AsRhlOw4vOQ6EmRUyBpVoOi0IoGCA', // User needs to set their Google API Key
+    CLIENT_ID: '', // Will be loaded from environment variables via serverless function
+    API_KEY: '', // Will be loaded from environment variables via serverless function
     DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
     // Scope options:
     // 'drive.file' - Only files created by this app (more secure, limited)
@@ -21,6 +21,9 @@ const DRIVE_CONFIG = {
         '.hpp': 'text/x-c++src'
     }
 };
+
+// Flag to track if credentials are loaded
+let credentialsLoaded = false;
 
 // State management
 let driveState = {
@@ -237,6 +240,7 @@ function updateUserUI() {
     const userInfo = document.getElementById('driveUserInfo');
     const linkBtn = document.getElementById('linkDriveBtn');
     const fileManager = document.getElementById('driveFileManager');
+    const driveDescription = document.getElementById('driveDescription');
 
     if (driveState.isSignedIn && driveState.currentUser) {
         document.getElementById('userName').textContent = driveState.currentUser.name || 'User';
@@ -246,10 +250,18 @@ function updateUserUI() {
         userInfo.style.display = 'flex';
         linkBtn.style.display = 'none';
         fileManager.style.display = 'block';
+        // Hide description when signed in to keep UI clean
+        if (driveDescription) {
+            driveDescription.style.display = 'none';
+        }
     } else {
         userInfo.style.display = 'none';
         linkBtn.style.display = 'flex';
         fileManager.style.display = 'none';
+        // Show description when not signed in
+        if (driveDescription) {
+            driveDescription.style.display = 'block';
+        }
     }
 }
 
@@ -1581,32 +1593,88 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function () {
-    // Use hardcoded credentials by default (for production)
-    // localStorage values are optional (for development/testing only)
-    const savedClientId = localStorage.getItem('gdrive_client_id');
-    const savedApiKey = localStorage.getItem('gdrive_api_key');
+// Load credentials from serverless function
+async function loadCredentials() {
+    try {
+        // Try to fetch from serverless function (production/Netlify)
+        const response = await fetch('/.netlify/functions/get-credentials');
 
-    // Override with localStorage values if they exist (for development)
-    if (savedClientId) {
-        DRIVE_CONFIG.CLIENT_ID = savedClientId;
-        console.log('Using Client ID from localStorage (development mode)');
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.credentials) {
+                DRIVE_CONFIG.CLIENT_ID = data.credentials.googleClientId;
+                DRIVE_CONFIG.API_KEY = data.credentials.googleApiKey;
+                credentialsLoaded = true;
+                console.log('✓ Credentials loaded from serverless function');
+                return true;
+            }
+        }
+
+        // Fallback: Check localStorage (for local development)
+        const savedClientId = localStorage.getItem('gdrive_client_id');
+        const savedApiKey = localStorage.getItem('gdrive_api_key');
+
+        if (savedClientId && savedApiKey) {
+            DRIVE_CONFIG.CLIENT_ID = savedClientId;
+            DRIVE_CONFIG.API_KEY = savedApiKey;
+            credentialsLoaded = true;
+            console.log('✓ Using credentials from localStorage (development mode)');
+            return true;
+        }
+
+        // If neither works, show error
+        console.error('Failed to load credentials from serverless function and no localStorage fallback');
+        return false;
+    } catch (error) {
+        console.error('Error loading credentials:', error);
+
+        // Fallback to localStorage for local development
+        const savedClientId = localStorage.getItem('gdrive_client_id');
+        const savedApiKey = localStorage.getItem('gdrive_api_key');
+
+        if (savedClientId && savedApiKey) {
+            DRIVE_CONFIG.CLIENT_ID = savedClientId;
+            DRIVE_CONFIG.API_KEY = savedApiKey;
+            credentialsLoaded = true;
+            console.log('✓ Using credentials from localStorage (fallback mode)');
+            return true;
+        }
+
+        return false;
     }
-    if (savedApiKey) {
-        DRIVE_CONFIG.API_KEY = savedApiKey;
-        console.log('Using API Key from localStorage (development mode)');
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', async function () {
+    // Load credentials first
+    const credentialsReady = await loadCredentials();
+
+    if (!credentialsReady) {
+        console.error('Google Drive credentials not configured!');
+        const banner = document.getElementById('driveSetupBanner');
+        if (banner) {
+            banner.style.display = 'block';
+            banner.innerHTML = '<p><strong>Configuration Error:</strong> API credentials are not properly configured. Please contact the administrator.</p>';
+        }
+        return;
     }
 
     // Validate that credentials are set
     if (!DRIVE_CONFIG.CLIENT_ID || !DRIVE_CONFIG.API_KEY) {
         console.error('Google Drive credentials not configured!');
-        document.getElementById('driveSetupBanner').style.display = 'block';
+        const banner = document.getElementById('driveSetupBanner');
+        if (banner) {
+            banner.style.display = 'block';
+            banner.innerHTML = '<p><strong>Configuration Error:</strong> API credentials are missing. Please contact the administrator.</p>';
+        }
         return;
     }
 
     // Hide setup banner and initialize
-    document.getElementById('driveSetupBanner').style.display = 'none';
+    const banner = document.getElementById('driveSetupBanner');
+    if (banner) {
+        banner.style.display = 'none';
+    }
     initializeGoogleAPIs();
 
     // Event listeners

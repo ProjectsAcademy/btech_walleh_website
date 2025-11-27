@@ -2,11 +2,14 @@
   # Publish directory (if using a build process)
   # publish = "dist"
   
+  # Build command - installs dependencies and obfuscates JS files
+  command = "npm install && npm run obfuscate"
+  
   # Functions directory
   functions = "netlify/functions"
 
 [build.environment]
-  # Node version for serverless functions
+  # Node version for serverless functions and build
   NODE_VERSION = "18"
 
 # Redirect rules

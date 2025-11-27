@@ -13,6 +13,10 @@ node_modules/
 dist/
 build/
 
+# Obfuscated files (optional - uncomment if you want to keep obfuscated files out of git)
+# Note: We're overwriting originals, so this may not be needed
+# js/*.obfuscated.js
+
 # OS files
 .DS_Store
 Thumbs.db

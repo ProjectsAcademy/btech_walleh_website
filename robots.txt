@@ -1,0 +1,105 @@
+# robots.txt - Block scrapers and bots
+# This file tells web crawlers which parts of the site they can access
+
+# Block all scrapers and website copiers
+User-agent: HTTrack
+Disallow: /
+
+User-agent: wget
+Disallow: /
+
+User-agent: curl
+Disallow: /
+
+User-agent: libwww-perl
+Disallow: /
+
+User-agent: python-requests
+Disallow: /
+
+User-agent: scrapy
+Disallow: /
+
+User-agent: Go-http-client
+Disallow: /
+
+User-agent: Java
+Disallow: /
+
+User-agent: okhttp
+Disallow: /
+
+User-agent: apache-httpclient
+Disallow: /
+
+# Block SEO crawlers (optional - remove if you want SEO)
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: BLEXBot
+Disallow: /
+
+User-agent: SiteAuditBot
+Disallow: /
+
+User-agent: Sitebulb
+Disallow: /
+
+User-agent: Screaming Frog SEO Spider
+Disallow: /
+
+User-agent: LinkdexBot
+Disallow: /
+
+User-agent: MegaIndex
+Disallow: /
+
+User-agent: Rogerbot
+Disallow: /
+
+User-agent: Sistrix
+Disallow: /
+
+# Allow legitimate search engines (optional - remove if you want to block all)
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# Block access to sensitive directories
+User-agent: *
+Disallow: /js/
+Disallow: /css/
+Disallow: /netlify/
+Disallow: /.netlify/
+Disallow: /node_modules/
+Disallow: /*.json$
+Disallow: /*.md$
+Disallow: /package.json
+Disallow: /netlify.toml
+Disallow: /.git/
+
+# Allow access to public pages
+Allow: /index.html
+Allow: /pages/
+Allow: /images/
+
+# Crawl-delay to slow down aggressive crawlers
+Crawl-delay: 10
+

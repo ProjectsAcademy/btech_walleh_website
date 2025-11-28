@@ -223,6 +223,101 @@
             color: #121212;
         }
 
+        /* Meme Toggle Button */
+        .meme-toggle-btn {
+            padding: 0.6rem 1rem;
+            background-color: transparent;
+            color: #e0e0e0;
+            border: 1px solid #333;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .meme-toggle-btn:hover {
+            border-color: #ffc107;
+            color: #ffc107;
+        }
+
+        .meme-toggle-btn.active {
+            border-color: #ffc107;
+            background-color: rgba(255, 193, 7, 0.1);
+            color: #ffc107;
+        }
+
+        .meme-toggle-btn #memeToggleIcon {
+            font-size: 1.1rem;
+        }
+
+        /* Meme Card Styles */
+        .meme-card {
+            background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.1) 100%);
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            animation: memeSlideIn 0.3s ease-out;
+            box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2);
+        }
+
+        @keyframes memeSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .meme-emoji {
+            font-size: 2rem;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .meme-text {
+            color: #ffc107;
+            font-size: 1rem;
+            font-weight: 600;
+            line-height: 1.4;
+            flex: 1;
+        }
+
+        /* Error Card Container */
+        .error-card-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        /* GIF Container Styles */
+        .gif-container {
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 0.5rem;
+        }
+
+        .gif-container .tenor-gif-embed {
+            max-width: 100%;
+        }
+
+        .gif-container iframe {
+            border-radius: 8px;
+        }
+
         .info-banner {
             background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
             border-left: 4px solid #ffc107;
@@ -1003,6 +1098,11 @@
                         </button>
                         <button id="loadExampleBtn" class="example-code-btn">Load Example</button>
                         <button id="clearBtn" class="clear-btn">Clear</button>
+                        <button id="memeToggleBtn" class="meme-toggle-btn" title="Toggle Gen-Z memes on errors"
+                            aria-label="Toggle memes">
+                            <span id="memeToggleIcon">💀</span>
+                            <span id="memeToggleText">Debug Kar, Par Hans Ke</span>
+                        </button>
                         <button id="runBtn" class="run-btn">
                             <span id="runBtnText">Run Code</span>
                             <span id="runBtnSpinner" class="loading-spinner" style="display: none;"></span>
@@ -1212,6 +1312,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/clike/clike.min.js"></script>
     <script src="../js/drive-manager.js"></script>
+    <script src="../js/meme-system.js"></script>
     <script src="../js/compiler.js"></script>
     <script src="../js/callback-modal.js"></script>
     <script src="../js/floating-contact.js"></script>

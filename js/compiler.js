@@ -205,6 +205,34 @@ document.addEventListener('DOMContentLoaded', async function () {
     // Initialize API status
     updateAPIStatus();
     console.log('Dual API system initialized. Starting with Public API, will auto-switch to RapidAPI if needed.');
+
+    // Initialize meme toggle button
+    const memeToggleBtn = document.getElementById('memeToggleBtn');
+    if (memeToggleBtn && typeof window.areMemesEnabled === 'function') {
+        // Update button state based on saved preference
+        const memesEnabled = window.areMemesEnabled();
+        if (memesEnabled) {
+            memeToggleBtn.classList.add('active');
+            memeToggleBtn.setAttribute('aria-pressed', 'true');
+        } else {
+            memeToggleBtn.classList.remove('active');
+            memeToggleBtn.setAttribute('aria-pressed', 'false');
+        }
+
+        // Add click handler
+        memeToggleBtn.addEventListener('click', function () {
+            if (typeof window.toggleMemes === 'function') {
+                const newState = window.toggleMemes();
+                if (newState) {
+                    memeToggleBtn.classList.add('active');
+                    memeToggleBtn.setAttribute('aria-pressed', 'true');
+                } else {
+                    memeToggleBtn.classList.remove('active');
+                    memeToggleBtn.setAttribute('aria-pressed', 'false');
+                }
+            }
+        });
+    }
 });
 
 function clearOutput() {
@@ -241,7 +269,16 @@ async function runCode() {
     const code = editor.getValue().trim();
 
     if (!code) {
-        showOutput('Error: Please write some code before running.', 'error');
+        // Show video for empty code
+        const outputContent = document.getElementById('outputContent');
+        outputContent.className = 'output-content error';
+        outputContent.innerHTML = `
+            <div class="gif-container">
+                <video autoplay loop muted playsinline style="max-width: 100%; border-radius: 8px; display: block;">
+                    <source src="../images/gifs/empty-code.mp4" type="video/mp4">
+                </video>
+            </div>
+        `;
         return;
     }
 
@@ -713,14 +750,13 @@ function formatCompilationError(errorText) {
         return `<div style="color: #ffffff;">${escapeHtml(formatted)}</div>`;
     }
 
-    // Add header if we have errors (in light grey)
-    if (hasMainError && htmlLines.length > 0 && !htmlLines[0].includes('Compilation errors') && !htmlLines[0].includes('In function')) {
-        htmlLines.unshift('<div style="color: #b0b0b0; margin-bottom: 8px; font-weight: 500;">Compilation errors found:</div>');
-    }
+    // Don't add header - keep it clean
 
     // Join and return HTML
     return htmlLines.join('');
 }
+
+// Removed Tenor embed functions - now using local MP4 videos
 
 function displayResult(result) {
     const outputContent = document.getElementById('outputContent');
@@ -746,8 +782,12 @@ function displayResult(result) {
     const statusId = result.status.id;
     const statusName = result.status.description || statusDescriptions[statusId] || 'Unknown';
 
+    // Check if memes are enabled and if this is an error
+    const memesEnabled = typeof window.areMemesEnabled === 'function' ? window.areMemesEnabled() : false;
+    const isError = statusId !== 3; // Not success
+
     if (statusId === 3) {
-        // Success
+        // Success - show success GIF
         className += ' success';
         output = result.stdout || '(No output)';
 
@@ -757,34 +797,102 @@ function displayResult(result) {
         if (result.memory) {
             output += `\n--- Memory Used: ${(result.memory / 1024).toFixed(2)} KB ---`;
         }
+
+        // Add success video
+        const escapedOutput = escapeHtml(output);
+        outputContent.className = className;
+        outputContent.innerHTML = `
+            <div class="gif-container">
+                <video autoplay loop muted playsinline style="max-width: 100%; border-radius: 8px; display: block;">
+                    <source src="../images/gifs/success.mp4" type="video/mp4">
+                </video>
+            </div>
+            <div style="margin-top: 1rem; white-space: pre-wrap; font-family: 'Courier New', monospace; color: #4caf50;">${escapedOutput}</div>
+        `;
+        return;
     } else if (statusId === 6) {
         // Compilation Error - use HTML formatting with colors
         className += ' error';
         const errorText = result.compile_output || result.stderr || 'Unknown compilation error';
-        const htmlOutput = formatCompilationError(errorText);
+        let htmlOutput = formatCompilationError(errorText);
+
+        // Add error video
+        const errorVideo = `
+            <div class="gif-container">
+                <video autoplay loop muted playsinline style="max-width: 100%; border-radius: 8px; display: block;">
+                    <source src="../images/gifs/error.mp4" type="video/mp4">
+                </video>
+            </div>
+        `;
+
+        // Add meme card if enabled
+        if (memesEnabled && typeof window.displayMemeCard === 'function') {
+            const errorType = typeof window.getErrorTypeFromStatus === 'function'
+                ? window.getErrorTypeFromStatus(statusId)
+                : 'compilation';
+            const meme = typeof window.getMemeForError === 'function'
+                ? window.getMemeForError(errorType)
+                : null;
+            const memeCard = window.displayMemeCard(statusId, meme);
+            htmlOutput = `<div class="error-card-container">${errorVideo}${memeCard}${htmlOutput}</div>`;
+        } else {
+            htmlOutput = `<div class="error-card-container">${errorVideo}${htmlOutput}</div>`;
+        }
+
         outputContent.className = className;
         outputContent.innerHTML = htmlOutput;
         return; // Early return since we set innerHTML directly
     } else {
         // Runtime Error or other errors
         className += ' error';
-        output = `${statusName}\n\n`;
+        output = ''; // Remove status name header
 
         if (result.stderr) {
-            output += `Error Output:\n${result.stderr}\n\n`;
+            output += result.stderr;
         }
 
         if (result.stdout) {
-            output += `Output:\n${result.stdout}\n\n`;
+            if (output) output += '\n\n';
+            output += result.stdout;
         }
 
         if (result.message) {
-            output += `Message: ${result.message}`;
+            if (output) output += '\n\n';
+            output += result.message;
         }
 
         if (!result.stderr && !result.stdout && !result.message) {
-            output += 'No additional information available.';
+            output = ''; // Don't show "No additional information available"
         }
+
+        // Add error video
+        const errorVideo = `
+            <div class="gif-container">
+                <video autoplay loop muted playsinline style="max-width: 100%; border-radius: 8px; display: block;">
+                    <source src="../images/gifs/error.mp4" type="video/mp4">
+                </video>
+            </div>
+        `;
+
+        const escapedOutput = escapeHtml(output);
+        const outputDisplay = output ? `<div style="white-space: pre-wrap; font-family: 'Courier New', monospace;">${escapedOutput}</div>` : '';
+
+        // Add meme card if enabled
+        if (memesEnabled && typeof window.displayMemeCard === 'function') {
+            const errorType = typeof window.getErrorTypeFromStatus === 'function'
+                ? window.getErrorTypeFromStatus(statusId)
+                : 'generic';
+            const meme = typeof window.getMemeForError === 'function'
+                ? window.getMemeForError(errorType)
+                : null;
+            const memeCard = window.displayMemeCard(statusId, meme);
+            outputContent.className = className;
+            outputContent.innerHTML = `<div class="error-card-container">${errorVideo}${memeCard}${outputDisplay}</div>`;
+        } else {
+            outputContent.className = className;
+            outputContent.innerHTML = `<div class="error-card-container">${errorVideo}${outputDisplay}</div>`;
+        }
+        return; // Early return since we set innerHTML directly
     }
 
     outputContent.className = className;
@@ -797,4 +905,5 @@ function showOutput(message, type = 'success') {
     outputContent.textContent = message;
     hideLoading();
 }
+
 

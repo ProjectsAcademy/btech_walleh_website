@@ -16,7 +16,7 @@ const obfuscationOptions = {
     deadCodeInjectionThreshold: 0.4,        // 40% of nodes
     debugProtection: false,                 // Disable (can break DevTools)
     debugProtectionInterval: 0,             // Disable
-    disableConsoleOutput: false,            // Keep console (for debugging)
+    disableConsoleOutput: false,            // Keep console (for debugging) - IMPORTANT: Keep false to preserve console.logs
     identifierNamesGenerator: 'hexadecimal', // Random hexadecimal names
     log: false,                             // No obfuscation logs
     numbersToExpressions: true,              // Convert numbers to expressions
@@ -47,7 +47,8 @@ const jsFiles = [
     'js/drive-manager.js',
     'js/callback-modal.js',
     'js/course-detail.js',
-    'js/floating-contact.js'
+    'js/floating-contact.js',
+    'js/meme-system.js'
 ];
 
 // Get the project root directory
@@ -62,40 +63,40 @@ let errorCount = 0;
 jsFiles.forEach(filePath => {
     const fullPath = path.join(projectRoot, filePath);
     const fileName = path.basename(filePath);
-    
+
     try {
         // Check if file exists
         if (!fs.existsSync(fullPath)) {
             console.log(`⚠️  Skipping ${fileName} - File not found`);
             return;
         }
-        
+
         // Read the original file
         const originalCode = fs.readFileSync(fullPath, 'utf8');
-        
+
         // Skip if file is empty
         if (!originalCode.trim()) {
             console.log(`⚠️  Skipping ${fileName} - File is empty`);
             return;
         }
-        
+
         // Obfuscate the code
         const obfuscationResult = JavaScriptObfuscator.obfuscate(originalCode, obfuscationOptions);
         const obfuscatedCode = obfuscationResult.getObfuscatedCode();
-        
+
         // Write obfuscated code back to the file
         fs.writeFileSync(fullPath, obfuscatedCode, 'utf8');
-        
+
         // Calculate size difference
         const originalSize = Buffer.byteLength(originalCode, 'utf8');
         const obfuscatedSize = Buffer.byteLength(obfuscatedCode, 'utf8');
         const sizeDiff = ((obfuscatedSize - originalSize) / originalSize * 100).toFixed(1);
-        
+
         console.log(`✅ ${fileName}`);
         console.log(`   Original: ${(originalSize / 1024).toFixed(2)} KB`);
         console.log(`   Obfuscated: ${(obfuscatedSize / 1024).toFixed(2)} KB`);
         console.log(`   Size change: ${sizeDiff > 0 ? '+' : ''}${sizeDiff}%\n`);
-        
+
         successCount++;
     } catch (error) {
         console.error(`❌ Error obfuscating ${fileName}:`, error.message);

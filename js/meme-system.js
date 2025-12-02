@@ -1,5 +1,5 @@
 // Lightweight Gen-Z Meme System for Compiler Errors
-// Safe, accessible, and toggleable
+// Safe, accessible, and always enabled
 
 // Meme database - Gen-Z styled, safe memes
 const MEME_DATABASE = [
@@ -230,7 +230,7 @@ function getErrorTypeFromStatus(statusId) {
     return statusMap[statusId] || 'generic';
 }
 
-// Display meme card
+// Display meme card (always enabled)
 function displayMemeCard(errorType, meme) {
     if (!meme || !isMemeSafe(meme)) {
         return ''; // Don't display unsafe memes
@@ -254,56 +254,10 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Check if memes are enabled
-function areMemesEnabled() {
-    const saved = localStorage.getItem('compiler_memes_enabled');
-    return saved !== null ? saved === 'true' : true; // Default: enabled
-}
-
-// Toggle memes
-function toggleMemes() {
-    const current = areMemesEnabled();
-    const newValue = !current;
-    localStorage.setItem('compiler_memes_enabled', newValue.toString());
-    return newValue;
-}
-
 // Export functions
 if (typeof window !== 'undefined') {
     window.getMemeForError = getMemeForError;
     window.displayMemeCard = displayMemeCard;
-    window.areMemesEnabled = areMemesEnabled;
-    window.toggleMemes = toggleMemes;
     window.getErrorTypeFromStatus = getErrorTypeFromStatus;
-
-    // Initialize button state immediately when script loads
-    function initButtonState() {
-        const memeToggleBtn = document.getElementById('memeToggleBtn');
-        if (memeToggleBtn) {
-            // Ensure button is enabled
-            memeToggleBtn.disabled = false;
-            memeToggleBtn.removeAttribute('disabled');
-            memeToggleBtn.style.opacity = '';
-            memeToggleBtn.style.cursor = '';
-
-            // Set initial state
-            const memesEnabled = areMemesEnabled();
-            if (memesEnabled) {
-                memeToggleBtn.classList.add('active');
-                memeToggleBtn.setAttribute('aria-pressed', 'true');
-            } else {
-                memeToggleBtn.classList.remove('active');
-                memeToggleBtn.setAttribute('aria-pressed', 'false');
-            }
-        }
-    }
-
-    // Try to initialize immediately, or wait for DOM
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initButtonState);
-    } else {
-        // DOM already loaded, try immediately
-        setTimeout(initButtonState, 0);
-    }
 }
 

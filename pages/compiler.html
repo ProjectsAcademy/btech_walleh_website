@@ -223,37 +223,6 @@
             color: #121212;
         }
 
-        /* Meme Toggle Button */
-        .meme-toggle-btn {
-            padding: 0.6rem 1rem;
-            background-color: transparent;
-            color: #e0e0e0;
-            border: 1px solid #333;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .meme-toggle-btn:hover {
-            border-color: #ffc107;
-            color: #ffc107;
-        }
-
-        .meme-toggle-btn.active {
-            border-color: #ffc107;
-            background-color: rgba(255, 193, 7, 0.1);
-            color: #ffc107;
-        }
-
-        .meme-toggle-btn #memeToggleIcon {
-            font-size: 1.1rem;
-        }
-
         /* Meme Card Styles */
         .meme-card {
             background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.1) 100%);
@@ -1099,11 +1068,6 @@
                         </button>
                         <button id="loadExampleBtn" class="example-code-btn">Load Example</button>
                         <button id="clearBtn" class="clear-btn">Clear</button>
-                        <button id="memeToggleBtn" class="meme-toggle-btn" title="Toggle Gen-Z memes on errors"
-                            aria-label="Toggle memes">
-                            <span id="memeToggleIcon">💀</span>
-                            <span id="memeToggleText">Debug Kar, Par Hans Ke</span>
-                        </button>
                         <button id="runBtn" class="run-btn">
                             <span id="runBtnText">Run Code</span>
                             <span id="runBtnSpinner" class="loading-spinner" style="display: none;"></span>

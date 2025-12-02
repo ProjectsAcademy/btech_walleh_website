@@ -2,6 +2,8 @@
 // This system uses both public API and RapidAPI for up to 100 submissions
 // It automatically falls back to RapidAPI if public API hits rate limits
 
+console.log('⚙️ compiler.js loaded');
+
 // API Configurations - RapidAPI key will be loaded from serverless function
 const API_CONFIGS = {
     public: {
@@ -205,68 +207,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     // Initialize API status
     updateAPIStatus();
     console.log('Dual API system initialized. Starting with Public API, will auto-switch to RapidAPI if needed.');
-
-    // Initialize meme toggle button with retry mechanism
-    let memeToggleInitialized = false;
-
-    function initializeMemeToggle() {
-        const memeToggleBtn = document.getElementById('memeToggleBtn');
-        if (!memeToggleBtn) {
-            // Button not found, retry
-            if (!memeToggleInitialized) {
-                setTimeout(initializeMemeToggle, 50);
-            }
-            return;
-        }
-
-        // Check if meme system functions are available
-        if (typeof window.areMemesEnabled !== 'function' || typeof window.toggleMemes !== 'function') {
-            // Functions not ready yet, retry after a short delay (max 20 retries = 1 second)
-            if (!memeToggleInitialized) {
-                setTimeout(initializeMemeToggle, 50);
-            }
-            return;
-        }
-
-        // Enable button and remove disabled state
-        memeToggleBtn.disabled = false;
-        memeToggleBtn.removeAttribute('disabled');
-        memeToggleBtn.style.opacity = '';
-        memeToggleBtn.style.cursor = '';
-
-        // Update button state based on saved preference
-        const memesEnabled = window.areMemesEnabled();
-        if (memesEnabled) {
-            memeToggleBtn.classList.add('active');
-            memeToggleBtn.setAttribute('aria-pressed', 'true');
-        } else {
-            memeToggleBtn.classList.remove('active');
-            memeToggleBtn.setAttribute('aria-pressed', 'false');
-        }
-
-        // Add click handler (only once)
-        if (!memeToggleInitialized) {
-            memeToggleBtn.addEventListener('click', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                if (typeof window.toggleMemes === 'function') {
-                    const newState = window.toggleMemes();
-                    if (newState) {
-                        memeToggleBtn.classList.add('active');
-                        memeToggleBtn.setAttribute('aria-pressed', 'true');
-                    } else {
-                        memeToggleBtn.classList.remove('active');
-                        memeToggleBtn.setAttribute('aria-pressed', 'false');
-                    }
-                }
-            });
-            memeToggleInitialized = true;
-        }
-    }
-
-    // Start initialization immediately
-    initializeMemeToggle();
 });
 
 function clearOutput() {
@@ -815,13 +755,10 @@ function displayResult(result) {
 
     const statusId = result.status.id;
     const statusName = result.status.description || statusDescriptions[statusId] || 'Unknown';
-
-    // Check if memes are enabled and if this is an error
-    const memesEnabled = typeof window.areMemesEnabled === 'function' ? window.areMemesEnabled() : false;
     const isError = statusId !== 3; // Not success
 
     if (statusId === 3) {
-        // Success - show success GIF
+        // Success - show success GIF (always show success video, but check for memes if enabled)
         className += ' success';
         output = result.stdout || '(No output)';
 
@@ -832,7 +769,7 @@ function displayResult(result) {
             output += `\n--- Memory Used: ${(result.memory / 1024).toFixed(2)} KB ---`;
         }
 
-        // Add success video
+        // Show success video (memes always enabled)
         const escapedOutput = escapeHtml(output);
         outputContent.className = className;
         outputContent.innerHTML = `
@@ -859,8 +796,8 @@ function displayResult(result) {
             </div>
         `;
 
-        // Add meme card if enabled
-        if (memesEnabled && typeof window.displayMemeCard === 'function') {
+        // Add meme card (memes always enabled)
+        if (typeof window.displayMemeCard === 'function') {
             const errorType = typeof window.getErrorTypeFromStatus === 'function'
                 ? window.getErrorTypeFromStatus(statusId)
                 : 'compilation';
@@ -911,8 +848,8 @@ function displayResult(result) {
         const escapedOutput = escapeHtml(output);
         const outputDisplay = output ? `<div style="white-space: pre-wrap; font-family: 'Courier New', monospace;">${escapedOutput}</div>` : '';
 
-        // Add meme card if enabled
-        if (memesEnabled && typeof window.displayMemeCard === 'function') {
+        // Add meme card (memes always enabled)
+        if (typeof window.displayMemeCard === 'function') {
             const errorType = typeof window.getErrorTypeFromStatus === 'function'
                 ? window.getErrorTypeFromStatus(statusId)
                 : 'generic';

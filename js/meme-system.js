@@ -169,7 +169,7 @@ const UNSAFE_KEYWORDS = [
 // Check if meme is safe
 function isMemeSafe(meme) {
     if (!meme || !meme.safe) return false;
-    
+
     const text = meme.text.toLowerCase();
     for (const keyword of UNSAFE_KEYWORDS) {
         if (text.includes(keyword)) {
@@ -194,8 +194,8 @@ function getMemeForError(errorType) {
     });
 
     // If no specific memes found, use generic safe memes
-    const availableMemes = filteredMemes.length > 0 
-        ? filteredMemes 
+    const availableMemes = filteredMemes.length > 0
+        ? filteredMemes
         : MEME_DATABASE.filter(m => m.type === 'generic' && isMemeSafe(m));
 
     if (availableMemes.length === 0) {
@@ -275,5 +275,35 @@ if (typeof window !== 'undefined') {
     window.areMemesEnabled = areMemesEnabled;
     window.toggleMemes = toggleMemes;
     window.getErrorTypeFromStatus = getErrorTypeFromStatus;
+
+    // Initialize button state immediately when script loads
+    function initButtonState() {
+        const memeToggleBtn = document.getElementById('memeToggleBtn');
+        if (memeToggleBtn) {
+            // Ensure button is enabled
+            memeToggleBtn.disabled = false;
+            memeToggleBtn.removeAttribute('disabled');
+            memeToggleBtn.style.opacity = '';
+            memeToggleBtn.style.cursor = '';
+
+            // Set initial state
+            const memesEnabled = areMemesEnabled();
+            if (memesEnabled) {
+                memeToggleBtn.classList.add('active');
+                memeToggleBtn.setAttribute('aria-pressed', 'true');
+            } else {
+                memeToggleBtn.classList.remove('active');
+                memeToggleBtn.setAttribute('aria-pressed', 'false');
+            }
+        }
+    }
+
+    // Try to initialize immediately, or wait for DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initButtonState);
+    } else {
+        // DOM already loaded, try immediately
+        setTimeout(initButtonState, 0);
+    }
 }
 

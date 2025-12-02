@@ -206,9 +206,34 @@ document.addEventListener('DOMContentLoaded', async function () {
     updateAPIStatus();
     console.log('Dual API system initialized. Starting with Public API, will auto-switch to RapidAPI if needed.');
 
-    // Initialize meme toggle button
-    const memeToggleBtn = document.getElementById('memeToggleBtn');
-    if (memeToggleBtn && typeof window.areMemesEnabled === 'function') {
+    // Initialize meme toggle button with retry mechanism
+    let memeToggleInitialized = false;
+
+    function initializeMemeToggle() {
+        const memeToggleBtn = document.getElementById('memeToggleBtn');
+        if (!memeToggleBtn) {
+            // Button not found, retry
+            if (!memeToggleInitialized) {
+                setTimeout(initializeMemeToggle, 50);
+            }
+            return;
+        }
+
+        // Check if meme system functions are available
+        if (typeof window.areMemesEnabled !== 'function' || typeof window.toggleMemes !== 'function') {
+            // Functions not ready yet, retry after a short delay (max 20 retries = 1 second)
+            if (!memeToggleInitialized) {
+                setTimeout(initializeMemeToggle, 50);
+            }
+            return;
+        }
+
+        // Enable button and remove disabled state
+        memeToggleBtn.disabled = false;
+        memeToggleBtn.removeAttribute('disabled');
+        memeToggleBtn.style.opacity = '';
+        memeToggleBtn.style.cursor = '';
+
         // Update button state based on saved preference
         const memesEnabled = window.areMemesEnabled();
         if (memesEnabled) {
@@ -219,20 +244,29 @@ document.addEventListener('DOMContentLoaded', async function () {
             memeToggleBtn.setAttribute('aria-pressed', 'false');
         }
 
-        // Add click handler
-        memeToggleBtn.addEventListener('click', function () {
-            if (typeof window.toggleMemes === 'function') {
-                const newState = window.toggleMemes();
-                if (newState) {
-                    memeToggleBtn.classList.add('active');
-                    memeToggleBtn.setAttribute('aria-pressed', 'true');
-                } else {
-                    memeToggleBtn.classList.remove('active');
-                    memeToggleBtn.setAttribute('aria-pressed', 'false');
+        // Add click handler (only once)
+        if (!memeToggleInitialized) {
+            memeToggleBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (typeof window.toggleMemes === 'function') {
+                    const newState = window.toggleMemes();
+                    if (newState) {
+                        memeToggleBtn.classList.add('active');
+                        memeToggleBtn.setAttribute('aria-pressed', 'true');
+                    } else {
+                        memeToggleBtn.classList.remove('active');
+                        memeToggleBtn.setAttribute('aria-pressed', 'false');
+                    }
                 }
-            }
-        });
+            });
+            memeToggleInitialized = true;
+        }
     }
+
+    // Start initialization immediately
+    initializeMemeToggle();
 });
 
 function clearOutput() {

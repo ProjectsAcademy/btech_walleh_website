@@ -14,23 +14,6 @@ const isMainBranch = process.env.CONTEXT === 'production' ||
     process.env.BRANCH === 'main' ||
     process.env.HEAD === 'main';
 
-// Function to remove console.log statements from code
-function removeConsoleLogs(code) {
-    // Remove console.log, console.error, console.warn, console.info, console.debug, console.trace
-    // Handle both single-line and multi-line console statements
-    // Pattern 1: Simple console.log(...);
-    let cleaned = code.replace(/console\.(log|error|warn|info|debug|trace)\s*\([^)]*\)\s*;?\s*/g, '');
-
-    // Pattern 2: Multi-line console statements (with nested parentheses)
-    // This handles cases like console.log('test', {obj: 'value'});
-    cleaned = cleaned.replace(/console\.(log|error|warn|info|debug|trace)\s*\([^;]*?\)\s*;?\s*/gs, '');
-
-    // Pattern 3: Remove any remaining console statements that might have been missed
-    cleaned = cleaned.replace(/console\.(log|error|warn|info|debug|trace)\s*\([^)]*\)\s*;?/g, '');
-
-    return cleaned;
-}
-
 // Configuration: Balanced Obfuscation (Option B)
 // Disable console output on main branch, enable on test branches
 const obfuscationOptions = {
@@ -100,7 +83,7 @@ jsFiles.forEach(filePath => {
         }
 
         // Read the original file
-        let originalCode = fs.readFileSync(fullPath, 'utf8');
+        const originalCode = fs.readFileSync(fullPath, 'utf8');
 
         // Skip if file is empty
         if (!originalCode.trim()) {
@@ -108,17 +91,8 @@ jsFiles.forEach(filePath => {
             return;
         }
 
-        // Remove console.logs on main branch before obfuscation
-        if (isMainBranch) {
-            const beforeSize = originalCode.length;
-            originalCode = removeConsoleLogs(originalCode);
-            const removedCount = (beforeSize - originalCode.length) > 0;
-            if (removedCount) {
-                console.log(`   🧹 Removed console statements from ${fileName}`);
-            }
-        }
-
         // Obfuscate the code
+        // The disableConsoleOutput option will disable console output at runtime on main branch
         const obfuscationResult = JavaScriptObfuscator.obfuscate(originalCode, obfuscationOptions);
         const obfuscatedCode = obfuscationResult.getObfuscatedCode();
 

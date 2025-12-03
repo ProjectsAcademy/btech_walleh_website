@@ -233,7 +233,6 @@
         </div>
     </div>
 
-    <script src="../js/console-control.js"></script>
     <script src="../js/callback-modal.js"></script>
     <script src="../js/floating-contact.js"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
@@ -242,6 +241,8 @@
             emailjs.init("iiX9PAG3ms_N_hsoB");
         })();
     </script>
+    <!-- Console control must run AFTER obfuscated scripts to restore console methods -->
+    <script src="../js/console-control.js"></script>
 </body>
 
 </html>

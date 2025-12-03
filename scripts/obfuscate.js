@@ -7,7 +7,32 @@ const JavaScriptObfuscator = require('javascript-obfuscator');
 const fs = require('fs');
 const path = require('path');
 
+// Detect if we're on main branch (production)
+// Netlify provides: CONTEXT (production/deploy-preview/branch-deploy), BRANCH, HEAD
+// For local development, assume test branch (console.logs enabled)
+const isMainBranch = process.env.CONTEXT === 'production' ||
+    process.env.BRANCH === 'main' ||
+    process.env.HEAD === 'main';
+
+// Function to remove console.log statements from code
+function removeConsoleLogs(code) {
+    // Remove console.log, console.error, console.warn, console.info, console.debug, console.trace
+    // Handle both single-line and multi-line console statements
+    // Pattern 1: Simple console.log(...);
+    let cleaned = code.replace(/console\.(log|error|warn|info|debug|trace)\s*\([^)]*\)\s*;?\s*/g, '');
+
+    // Pattern 2: Multi-line console statements (with nested parentheses)
+    // This handles cases like console.log('test', {obj: 'value'});
+    cleaned = cleaned.replace(/console\.(log|error|warn|info|debug|trace)\s*\([^;]*?\)\s*;?\s*/gs, '');
+
+    // Pattern 3: Remove any remaining console statements that might have been missed
+    cleaned = cleaned.replace(/console\.(log|error|warn|info|debug|trace)\s*\([^)]*\)\s*;?/g, '');
+
+    return cleaned;
+}
+
 // Configuration: Balanced Obfuscation (Option B)
+// Disable console output on main branch, enable on test branches
 const obfuscationOptions = {
     compact: true,                          // Remove whitespace
     controlFlowFlattening: true,            // Make control flow harder to follow
@@ -16,7 +41,7 @@ const obfuscationOptions = {
     deadCodeInjectionThreshold: 0.4,        // 40% of nodes
     debugProtection: false,                 // Disable (can break DevTools)
     debugProtectionInterval: 0,             // Disable
-    disableConsoleOutput: false,            // Keep console (for debugging) - IMPORTANT: Keep false to preserve console.logs
+    disableConsoleOutput: isMainBranch,     // Disable console on main branch, enable on test branches
     identifierNamesGenerator: 'hexadecimal', // Random hexadecimal names
     log: false,                             // No obfuscation logs
     numbersToExpressions: true,              // Convert numbers to expressions
@@ -54,7 +79,10 @@ const jsFiles = [
 // Get the project root directory
 const projectRoot = path.resolve(__dirname, '..');
 
-console.log('🔒 Starting JavaScript Obfuscation...\n');
+console.log('🔒 Starting JavaScript Obfuscation...');
+console.log(`📦 Branch: ${process.env.BRANCH || process.env.HEAD || 'unknown'}`);
+console.log(`🌍 Context: ${process.env.CONTEXT || 'unknown'}`);
+console.log(`🔇 Console logs: ${isMainBranch ? 'DISABLED (main branch)' : 'ENABLED (test branch)'}\n`);
 
 let successCount = 0;
 let errorCount = 0;
@@ -72,12 +100,22 @@ jsFiles.forEach(filePath => {
         }
 
         // Read the original file
-        const originalCode = fs.readFileSync(fullPath, 'utf8');
+        let originalCode = fs.readFileSync(fullPath, 'utf8');
 
         // Skip if file is empty
         if (!originalCode.trim()) {
             console.log(`⚠️  Skipping ${fileName} - File is empty`);
             return;
+        }
+
+        // Remove console.logs on main branch before obfuscation
+        if (isMainBranch) {
+            const beforeSize = originalCode.length;
+            originalCode = removeConsoleLogs(originalCode);
+            const removedCount = (beforeSize - originalCode.length) > 0;
+            if (removedCount) {
+                console.log(`   🧹 Removed console statements from ${fileName}`);
+            }
         }
 
         // Obfuscate the code

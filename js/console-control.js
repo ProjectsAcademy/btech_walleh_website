@@ -17,8 +17,9 @@
     ];
 
     // Check if we're on production domain
+    // Only match exact domains, not subdomains (test.btechwalleh.com should NOT match)
     const isProduction = productionDomains.some(domain =>
-        hostname === domain || hostname.endsWith('.' + domain)
+        hostname === domain
     );
 
     // Debug: Log the detection (using original console before any changes)

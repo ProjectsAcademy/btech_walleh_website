@@ -7,7 +7,15 @@ const JavaScriptObfuscator = require('javascript-obfuscator');
 const fs = require('fs');
 const path = require('path');
 
+// Detect if we're on main branch (production)
+// Netlify provides: CONTEXT (production/deploy-preview/branch-deploy), BRANCH, HEAD
+// For local development, assume test branch (console.logs enabled)
+const isMainBranch = process.env.CONTEXT === 'production' ||
+    process.env.BRANCH === 'main' ||
+    process.env.HEAD === 'main';
+
 // Configuration: Balanced Obfuscation (Option B)
+// Disable console output on main branch, enable on test branches
 const obfuscationOptions = {
     compact: true,                          // Remove whitespace
     controlFlowFlattening: true,            // Make control flow harder to follow
@@ -16,7 +24,7 @@ const obfuscationOptions = {
     deadCodeInjectionThreshold: 0.4,        // 40% of nodes
     debugProtection: false,                 // Disable (can break DevTools)
     debugProtectionInterval: 0,             // Disable
-    disableConsoleOutput: false,            // Keep console (for debugging) - IMPORTANT: Keep false to preserve console.logs
+    disableConsoleOutput: isMainBranch,     // Disable console on main branch, enable on test branches
     identifierNamesGenerator: 'hexadecimal', // Random hexadecimal names
     log: false,                             // No obfuscation logs
     numbersToExpressions: true,              // Convert numbers to expressions
@@ -54,7 +62,14 @@ const jsFiles = [
 // Get the project root directory
 const projectRoot = path.resolve(__dirname, '..');
 
-console.log('🔒 Starting JavaScript Obfuscation...\n');
+console.log('🔒 Starting JavaScript Obfuscation...');
+console.log(`📦 Branch: ${process.env.BRANCH || process.env.HEAD || 'unknown'}`);
+console.log(`🌍 Context: ${process.env.CONTEXT || 'unknown'}`);
+console.log(`🔍 BRANCH env: ${process.env.BRANCH || 'not set'}`);
+console.log(`🔍 HEAD env: ${process.env.HEAD || 'not set'}`);
+console.log(`🔍 CONTEXT env: ${process.env.CONTEXT || 'not set'}`);
+console.log(`🔍 isMainBranch: ${isMainBranch}`);
+console.log(`🔇 Console logs: ${isMainBranch ? 'DISABLED (main branch)' : 'ENABLED (test branch)'}\n`);
 
 let successCount = 0;
 let errorCount = 0;
@@ -81,6 +96,7 @@ jsFiles.forEach(filePath => {
         }
 
         // Obfuscate the code
+        // The disableConsoleOutput option will disable console output at runtime on main branch
         const obfuscationResult = JavaScriptObfuscator.obfuscate(originalCode, obfuscationOptions);
         const obfuscatedCode = obfuscationResult.getObfuscatedCode();
 

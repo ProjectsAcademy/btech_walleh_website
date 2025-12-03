@@ -72,120 +72,157 @@
         return false;
     }
 
-    // Function to disable console methods
+    // Function to disable console methods (only if writable)
     function disableConsole() {
         const noop = function () { };
         if (typeof console !== 'undefined') {
-            console.log = noop;
-            console.error = noop;
-            console.warn = noop;
-            console.info = noop;
-            console.debug = noop;
-            console.trace = noop;
-            console.table = noop;
-            console.group = noop;
-            console.groupEnd = noop;
-            console.groupCollapsed = noop;
-            console.time = noop;
-            console.timeEnd = noop;
-            console.count = noop;
-            console.clear = noop;
+            // Check if properties are writable before trying to assign
+            const consoleMethods = ['log', 'error', 'warn', 'info', 'debug', 'trace', 'table', 'group', 'groupEnd', 'groupCollapsed', 'time', 'timeEnd', 'count', 'clear'];
+            consoleMethods.forEach(method => {
+                try {
+                    const descriptor = Object.getOwnPropertyDescriptor(console, method);
+                    // Only assign if property is writable or doesn't exist
+                    if (!descriptor || descriptor.writable !== false) {
+                        console[method] = noop;
+                    }
+                } catch (e) {
+                    // If we can't check or assign, ignore
+                }
+            });
         }
     }
 
     // Apply console control based on environment
     if (isProduction) {
-        // On production: disable console IMMEDIATELY and keep it disabled FOREVER
+        // On production: disable console IMMEDIATELY and make it read-only
+
+        // Step 1: First disable console methods (if writable)
         disableConsole();
 
-        // PERMANENT monitoring: keep console disabled continuously
-        // This runs forever to ensure console never gets restored on production
-        const productionMonitorInterval = setInterval(() => {
-            disableConsole();
-        }, 200); // Check every 200ms forever
-
-        // Override console methods with Object.defineProperty to make them non-writable
+        // Step 2: Make console methods read-only using Object.defineProperty
         // This prevents obfuscated code from restoring console
+        const noop = function () { };
+        const consoleMethods = ['log', 'error', 'warn', 'info', 'debug', 'trace', 'table', 'group', 'groupEnd', 'groupCollapsed', 'time', 'timeEnd', 'count', 'clear'];
+
+        consoleMethods.forEach(method => {
+            try {
+                Object.defineProperty(console, method, {
+                    value: noop,
+                    writable: false,
+                    configurable: false,
+                    enumerable: true
+                });
+            } catch (e) {
+                // If defineProperty fails for this method, continue with others
+            }
+        });
+
+        // Step 3: Use Proxy to intercept any attempts to modify console methods (if supported)
+        // This must be done BEFORE making properties read-only, so we'll skip it if already read-only
         try {
-            const noop = function () { };
-            Object.defineProperty(console, 'log', {
-                value: noop,
-                writable: false,
-                configurable: false
+            const consoleProxy = new Proxy(console, {
+                set: function (target, prop, value) {
+                    // Block any attempts to restore console methods
+                    if (consoleMethods.includes(prop)) {
+                        // Don't try to assign if property is read-only
+                        try {
+                            const descriptor = Object.getOwnPropertyDescriptor(target, prop);
+                            if (descriptor && descriptor.writable === false) {
+                                // Property is read-only, just return true (assignment blocked)
+                                return true;
+                            }
+                            // If writable, set to noop
+                            const noop = function () { };
+                            target[prop] = noop;
+                        } catch (e) {
+                            // If assignment fails, that's fine - property is protected
+                        }
+                        return true;
+                    }
+                    // For other properties, allow assignment
+                    try {
+                        target[prop] = value;
+                    } catch (e) {
+                        // If assignment fails, ignore
+                    }
+                    return true;
+                }
             });
-            Object.defineProperty(console, 'error', {
-                value: noop,
-                writable: false,
-                configurable: false
-            });
-            Object.defineProperty(console, 'warn', {
-                value: noop,
-                writable: false,
-                configurable: false
-            });
-            Object.defineProperty(console, 'info', {
-                value: noop,
-                writable: false,
-                configurable: false
-            });
-            Object.defineProperty(console, 'debug', {
-                value: noop,
-                writable: false,
-                configurable: false
-            });
-            Object.defineProperty(console, 'trace', {
-                value: noop,
-                writable: false,
-                configurable: false
-            });
-            Object.defineProperty(console, 'table', {
-                value: noop,
-                writable: false,
-                configurable: false
-            });
+            // Try to replace window.console with proxy (only if console is still configurable)
+            try {
+                const consoleDescriptor = Object.getOwnPropertyDescriptor(window, 'console');
+                if (!consoleDescriptor || consoleDescriptor.configurable !== false) {
+                    Object.defineProperty(window, 'console', {
+                        value: consoleProxy,
+                        writable: false,
+                        configurable: false
+                    });
+                }
+            } catch (e) {
+                // If we can't replace, that's okay - properties are already read-only
+            }
         } catch (e) {
-            // If defineProperty fails, continue with regular monitoring
+            // If Proxy is not available, that's okay - properties are already read-only
         }
 
-        // Also disable on any future events
+        // Step 4: Monitor for any attempts to restore console (but don't try to assign to read-only properties)
+        // Check every 500ms to see if console methods have been restored (shouldn't happen if read-only)
+        const productionMonitorInterval = setInterval(() => {
+            // Just verify they're still disabled, don't try to assign if read-only
+            consoleMethods.forEach(method => {
+                try {
+                    const descriptor = Object.getOwnPropertyDescriptor(console, method);
+                    // If property is writable and not a noop, disable it
+                    if (descriptor && descriptor.writable !== false) {
+                        console[method] = noop;
+                        // Try to make it read-only again
+                        try {
+                            Object.defineProperty(console, method, {
+                                value: noop,
+                                writable: false,
+                                configurable: false
+                            });
+                        } catch (e) {
+                            // If we can't make it read-only, that's okay
+                        }
+                    }
+                } catch (e) {
+                    // Ignore errors
+                }
+            });
+        }, 500); // Check every 500ms
+
+        // Also verify on page events (but don't try to assign to read-only properties)
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
-                disableConsole();
+                // Just verify, don't assign if read-only
+                consoleMethods.forEach(method => {
+                    try {
+                        const descriptor = Object.getOwnPropertyDescriptor(console, method);
+                        if (descriptor && descriptor.writable !== false) {
+                            console[method] = noop;
+                        }
+                    } catch (e) {
+                        // Ignore
+                    }
+                });
             });
         }
 
         if (window.addEventListener) {
             window.addEventListener('load', () => {
-                disableConsole();
-            });
-        }
-
-        // Use Proxy to intercept any attempts to modify console methods (if supported)
-        try {
-            const consoleProxy = new Proxy(console, {
-                set: function (target, prop, value) {
-                    // Block any attempts to restore console methods
-                    if (['log', 'error', 'warn', 'info', 'debug', 'trace', 'table', 'group', 'groupEnd', 'groupCollapsed', 'time', 'timeEnd', 'count', 'clear'].includes(prop)) {
-                        const noop = function () { };
-                        target[prop] = noop;
-                        return true;
+                // Just verify, don't assign if read-only
+                consoleMethods.forEach(method => {
+                    try {
+                        const descriptor = Object.getOwnPropertyDescriptor(console, method);
+                        if (descriptor && descriptor.writable !== false) {
+                            console[method] = noop;
+                        }
+                    } catch (e) {
+                        // Ignore
                     }
-                    target[prop] = value;
-                    return true;
-                }
-            });
-            // Try to replace window.console with proxy
-            try {
-                Object.defineProperty(window, 'console', {
-                    value: consoleProxy,
-                    writable: false,
-                    configurable: false
                 });
-            } catch (e) {
-                // If we can't replace, continue with regular monitoring
-            }
-        } catch (e) {
-            // If Proxy is not available, continue with regular monitoring
+            });
         }
     } else {
         // On test/localhost: RESTORE console immediately

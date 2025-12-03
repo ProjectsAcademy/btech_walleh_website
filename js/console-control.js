@@ -3,31 +3,32 @@
  * Automatically disables console logs on production domain (btechwalleh.com)
  * Keeps console logs enabled on localhost and test domains
  * 
- * IMPORTANT: This script must run AFTER obfuscated scripts to restore console
- * methods that obfuscation may have disabled.
+ * IMPORTANT: Original console methods are captured in HEAD by inline script
+ * This script runs AFTER obfuscated scripts to restore console methods
  */
 
 (function () {
     'use strict';
 
-    // Store original console methods IMMEDIATELY before anything can modify them
-    // This must happen at the very start, even before checking hostname
-    const originalConsole = {};
-    if (typeof console !== 'undefined') {
-        originalConsole.log = console.log;
-        originalConsole.error = console.error;
-        originalConsole.warn = console.warn;
-        originalConsole.info = console.info;
-        originalConsole.debug = console.debug;
-        originalConsole.trace = console.trace;
-        originalConsole.table = console.table;
-        originalConsole.group = console.group;
-        originalConsole.groupEnd = console.groupEnd;
-        originalConsole.groupCollapsed = console.groupCollapsed;
-        originalConsole.time = console.time;
-        originalConsole.timeEnd = console.timeEnd;
-        originalConsole.count = console.count;
-        originalConsole.clear = console.clear;
+    // Get original console methods from window (captured in HEAD)
+    const originalConsole = window.__ORIGINAL_CONSOLE__ || {};
+
+    // If original console wasn't captured, try to get from current console
+    // (fallback for pages without the HEAD script)
+    if (!originalConsole.log && typeof console !== 'undefined') {
+        // Try to restore from native console if available
+        try {
+            const nativeConsole = console.constructor.prototype;
+            if (nativeConsole && nativeConsole.log) {
+                originalConsole.log = nativeConsole.log;
+                originalConsole.error = nativeConsole.error;
+                originalConsole.warn = nativeConsole.warn;
+                originalConsole.info = nativeConsole.info;
+                originalConsole.debug = nativeConsole.debug;
+            }
+        } catch (e) {
+            // If we can't get native console, we'll use what we have
+        }
     }
 
     // Get current hostname
@@ -48,21 +49,27 @@
     // Function to restore original console methods
     function restoreConsole() {
         if (typeof console !== 'undefined' && originalConsole.log) {
-            console.log = originalConsole.log;
-            console.error = originalConsole.error;
-            console.warn = originalConsole.warn;
-            console.info = originalConsole.info;
-            console.debug = originalConsole.debug;
-            console.trace = originalConsole.trace;
-            console.table = originalConsole.table;
-            console.group = originalConsole.group;
-            console.groupEnd = originalConsole.groupEnd;
-            console.groupCollapsed = originalConsole.groupCollapsed;
-            console.time = originalConsole.time;
-            console.timeEnd = originalConsole.timeEnd;
-            console.count = originalConsole.count;
-            console.clear = originalConsole.clear;
+            try {
+                console.log = originalConsole.log;
+                console.error = originalConsole.error;
+                console.warn = originalConsole.warn;
+                console.info = originalConsole.info;
+                console.debug = originalConsole.debug;
+                console.trace = originalConsole.trace;
+                console.table = originalConsole.table;
+                console.group = originalConsole.group;
+                console.groupEnd = originalConsole.groupEnd;
+                console.groupCollapsed = originalConsole.groupCollapsed;
+                console.time = originalConsole.time;
+                console.timeEnd = originalConsole.timeEnd;
+                console.count = originalConsole.count;
+                console.clear = originalConsole.clear;
+                return true;
+            } catch (e) {
+                return false;
+            }
         }
+        return false;
     }
 
     // Function to disable console methods
@@ -86,40 +93,67 @@
         }
     }
 
-    // Use original console for initial logging
-    if (originalConsole.log) {
-        originalConsole.log('[Console Control] Hostname:', hostname);
-        originalConsole.log('[Console Control] Is Production:', isProduction);
-        originalConsole.log('[Console Control] Console will be', isProduction ? 'DISABLED' : 'ENABLED');
-    }
-
     // Apply console control based on environment
     if (isProduction) {
         // On production: disable console
         disableConsole();
     } else {
-        // On test/localhost: RESTORE console (in case obfuscation disabled it)
-        // This ensures console works even if obfuscated scripts disabled it
+        // On test/localhost: RESTORE console immediately
         restoreConsole();
 
-        // Also set up a monitor to continuously restore console in case
-        // obfuscated code tries to disable it again (defensive approach)
-        if (typeof window !== 'undefined') {
-            // Run after a short delay to ensure all scripts have loaded
-            setTimeout(() => {
+        // Use original console for logging (if available)
+        if (originalConsole.log) {
+            originalConsole.log('[Console Control] Hostname:', hostname);
+            originalConsole.log('[Console Control] Is Production: false');
+            originalConsole.log('[Console Control] Console ENABLED for test environment');
+        }
+
+        // Aggressive restoration: restore console multiple times to ensure it works
+        // This handles cases where obfuscated code tries to disable console after we restore it
+
+        // Immediate restoration
+        restoreConsole();
+
+        // Restore after a short delay
+        setTimeout(() => {
+            restoreConsole();
+            if (originalConsole.log) {
+                originalConsole.log('[Console Control] Console restored (100ms delay)');
+            }
+        }, 100);
+
+        // Restore after longer delay (for async scripts)
+        setTimeout(() => {
+            restoreConsole();
+        }, 500);
+
+        // Restore on DOMContentLoaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
                 restoreConsole();
                 if (originalConsole.log) {
-                    originalConsole.log('[Console Control] Console methods restored for test environment');
+                    originalConsole.log('[Console Control] Console restored (DOMContentLoaded)');
                 }
-            }, 100);
-
-            // Also restore on DOMContentLoaded in case scripts load later
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => {
-                    restoreConsole();
-                });
-            }
+            });
         }
+
+        // Restore on window load
+        if (window.addEventListener) {
+            window.addEventListener('load', () => {
+                restoreConsole();
+            });
+        }
+
+        // Continuous monitoring: restore console every 2 seconds for first 10 seconds
+        // This ensures console stays enabled even if obfuscated code keeps disabling it
+        let monitorCount = 0;
+        const monitorInterval = setInterval(() => {
+            restoreConsole();
+            monitorCount++;
+            if (monitorCount >= 5) { // 5 * 2 seconds = 10 seconds
+                clearInterval(monitorInterval);
+            }
+        }, 2000);
     }
 })();
 

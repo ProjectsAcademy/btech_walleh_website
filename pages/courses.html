@@ -14,6 +14,30 @@
     <link rel="apple-touch-icon" sizes="180x180" href="../images/favicon/apple-touch-icon.png">
     <link rel="manifest" href="../images/favicon/site.webmanifest">
     <link rel="stylesheet" href="../css/styles.css">
+    <!-- CRITICAL: Capture console methods IMMEDIATELY before any scripts can modify them -->
+    <script>
+        (function() {
+            'use strict';
+            if (typeof window !== 'undefined' && typeof console !== 'undefined') {
+                window.__ORIGINAL_CONSOLE__ = {
+                    log: console.log.bind(console),
+                    error: console.error.bind(console),
+                    warn: console.warn.bind(console),
+                    info: console.info.bind(console),
+                    debug: console.debug.bind(console),
+                    trace: console.trace.bind(console),
+                    table: console.table.bind(console),
+                    group: console.group.bind(console),
+                    groupEnd: console.groupEnd.bind(console),
+                    groupCollapsed: console.groupCollapsed.bind(console),
+                    time: console.time.bind(console),
+                    timeEnd: console.timeEnd.bind(console),
+                    count: console.count.bind(console),
+                    clear: console.clear.bind(console)
+                };
+            }
+        })();
+    </script>
 </head>
 
 <body>

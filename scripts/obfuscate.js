@@ -65,6 +65,10 @@ const projectRoot = path.resolve(__dirname, '..');
 console.log('🔒 Starting JavaScript Obfuscation...');
 console.log(`📦 Branch: ${process.env.BRANCH || process.env.HEAD || 'unknown'}`);
 console.log(`🌍 Context: ${process.env.CONTEXT || 'unknown'}`);
+console.log(`🔍 BRANCH env: ${process.env.BRANCH || 'not set'}`);
+console.log(`🔍 HEAD env: ${process.env.HEAD || 'not set'}`);
+console.log(`🔍 CONTEXT env: ${process.env.CONTEXT || 'not set'}`);
+console.log(`🔍 isMainBranch: ${isMainBranch}`);
 console.log(`🔇 Console logs: ${isMainBranch ? 'DISABLED (main branch)' : 'ENABLED (test branch)'}\n`);
 
 let successCount = 0;

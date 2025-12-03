@@ -21,9 +21,13 @@
         hostname === domain || hostname.endsWith('.' + domain)
     );
 
+    // Debug: Log the detection (using original console before any changes)
+    console.log('[Console Control] Hostname:', hostname);
+    console.log('[Console Control] Is Production:', isProduction);
+    console.log('[Console Control] Console will be', isProduction ? 'DISABLED' : 'ENABLED');
+
     // If on production, disable console methods
     if (isProduction) {
-        // Store original console methods (optional, for debugging)
         const noop = function () { };
 
         // Override console methods with no-op functions
@@ -45,5 +49,6 @@
         }
     }
     // On localhost or test domains, console works normally (no changes needed)
+    // The obfuscation script should have disableConsoleOutput: false on test branches
 })();
 

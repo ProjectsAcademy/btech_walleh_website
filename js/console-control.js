@@ -95,19 +95,57 @@
 
     // Apply console control based on environment
     if (isProduction) {
-        // On production: disable console IMMEDIATELY and keep it disabled
+        // On production: disable console IMMEDIATELY and keep it disabled FOREVER
         disableConsole();
 
-        // Continuous monitoring: keep console disabled even if something tries to restore it
-        // Check every 500ms for first 30 seconds to ensure console stays disabled
-        let productionMonitorCount = 0;
+        // PERMANENT monitoring: keep console disabled continuously
+        // This runs forever to ensure console never gets restored on production
         const productionMonitorInterval = setInterval(() => {
             disableConsole();
-            productionMonitorCount++;
-            if (productionMonitorCount >= 60) { // 60 * 500ms = 30 seconds
-                clearInterval(productionMonitorInterval);
-            }
-        }, 500);
+        }, 200); // Check every 200ms forever
+
+        // Override console methods with Object.defineProperty to make them non-writable
+        // This prevents obfuscated code from restoring console
+        try {
+            const noop = function () { };
+            Object.defineProperty(console, 'log', {
+                value: noop,
+                writable: false,
+                configurable: false
+            });
+            Object.defineProperty(console, 'error', {
+                value: noop,
+                writable: false,
+                configurable: false
+            });
+            Object.defineProperty(console, 'warn', {
+                value: noop,
+                writable: false,
+                configurable: false
+            });
+            Object.defineProperty(console, 'info', {
+                value: noop,
+                writable: false,
+                configurable: false
+            });
+            Object.defineProperty(console, 'debug', {
+                value: noop,
+                writable: false,
+                configurable: false
+            });
+            Object.defineProperty(console, 'trace', {
+                value: noop,
+                writable: false,
+                configurable: false
+            });
+            Object.defineProperty(console, 'table', {
+                value: noop,
+                writable: false,
+                configurable: false
+            });
+        } catch (e) {
+            // If defineProperty fails, continue with regular monitoring
+        }
 
         // Also disable on any future events
         if (document.readyState === 'loading') {
@@ -120,6 +158,34 @@
             window.addEventListener('load', () => {
                 disableConsole();
             });
+        }
+
+        // Use Proxy to intercept any attempts to modify console methods (if supported)
+        try {
+            const consoleProxy = new Proxy(console, {
+                set: function (target, prop, value) {
+                    // Block any attempts to restore console methods
+                    if (['log', 'error', 'warn', 'info', 'debug', 'trace', 'table', 'group', 'groupEnd', 'groupCollapsed', 'time', 'timeEnd', 'count', 'clear'].includes(prop)) {
+                        const noop = function () { };
+                        target[prop] = noop;
+                        return true;
+                    }
+                    target[prop] = value;
+                    return true;
+                }
+            });
+            // Try to replace window.console with proxy
+            try {
+                Object.defineProperty(window, 'console', {
+                    value: consoleProxy,
+                    writable: false,
+                    configurable: false
+                });
+            } catch (e) {
+                // If we can't replace, continue with regular monitoring
+            }
+        } catch (e) {
+            // If Proxy is not available, continue with regular monitoring
         }
     } else {
         // On test/localhost: RESTORE console immediately

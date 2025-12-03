@@ -31,8 +31,8 @@
         }
     }
 
-    // Get current hostname
-    const hostname = window.location.hostname;
+    // Get current hostname (normalize to lowercase for comparison)
+    const hostname = (window.location.hostname || '').toLowerCase();
 
     // Production domains where console should be disabled
     const productionDomains = [
@@ -43,7 +43,7 @@
     // Check if we're on production domain
     // Only match exact domains, not subdomains (test.btechwalleh.com should NOT match)
     const isProduction = productionDomains.some(domain =>
-        hostname === domain
+        hostname === domain.toLowerCase()
     );
 
     // Function to restore original console methods
@@ -95,8 +95,32 @@
 
     // Apply console control based on environment
     if (isProduction) {
-        // On production: disable console
+        // On production: disable console IMMEDIATELY and keep it disabled
         disableConsole();
+
+        // Continuous monitoring: keep console disabled even if something tries to restore it
+        // Check every 500ms for first 30 seconds to ensure console stays disabled
+        let productionMonitorCount = 0;
+        const productionMonitorInterval = setInterval(() => {
+            disableConsole();
+            productionMonitorCount++;
+            if (productionMonitorCount >= 60) { // 60 * 500ms = 30 seconds
+                clearInterval(productionMonitorInterval);
+            }
+        }, 500);
+
+        // Also disable on any future events
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                disableConsole();
+            });
+        }
+
+        if (window.addEventListener) {
+            window.addEventListener('load', () => {
+                disableConsole();
+            });
+        }
     } else {
         // On test/localhost: RESTORE console immediately
         restoreConsole();

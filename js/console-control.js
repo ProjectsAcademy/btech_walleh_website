@@ -99,54 +99,14 @@
         // Step 1: First disable console methods (if writable)
         disableConsole();
 
-        // Step 2: Set up Proxy BEFORE making properties read-only
-        // This allows Proxy to intercept assignment attempts
+        // Step 2: Make console methods read-only using Object.defineProperty
+        // This prevents obfuscated code from restoring console
+        // NOTE: We do NOT use Proxy because Proxy cannot return true for non-configurable,
+        // non-writable properties without violating Proxy invariants and causing errors
         const noop = function () { };
         const consoleMethods = ['log', 'error', 'warn', 'info', 'debug', 'trace', 'table', 'group', 'groupEnd', 'groupCollapsed', 'time', 'timeEnd', 'count', 'clear'];
 
-        // Step 3: Use Proxy to intercept any attempts to modify console methods (if supported)
-        // NOTE: We set up Proxy BEFORE making properties read-only, so Proxy can handle assignments
-        // But Proxy setter must check if property is read-only before trying to assign
-        try {
-            const consoleProxy = new Proxy(console, {
-                set: function (target, prop, value) {
-                    // Block any attempts to restore console methods
-                    if (consoleMethods.includes(prop)) {
-                        // For console methods, silently block all assignment attempts
-                        // Properties are already read-only, so we just return true without trying to assign
-                        // This prevents errors when code tries to assign to read-only properties
-                        return true; // Silently accept the assignment attempt (but don't actually assign)
-                    }
-                    // For other properties, allow assignment (but catch errors)
-                    try {
-                        target[prop] = value;
-                    } catch (e) {
-                        // If assignment fails, ignore
-                    }
-                    return true;
-                }
-            });
-            // Try to replace window.console with proxy (only if console is still configurable)
-            // Do this BEFORE making properties read-only
-            try {
-                const consoleDescriptor = Object.getOwnPropertyDescriptor(window, 'console');
-                if (!consoleDescriptor || consoleDescriptor.configurable !== false) {
-                    Object.defineProperty(window, 'console', {
-                        value: consoleProxy,
-                        writable: false,
-                        configurable: false
-                    });
-                }
-            } catch (e) {
-                // If we can't replace, that's okay - continue without Proxy
-            }
-        } catch (e) {
-            // If Proxy is not available, that's okay - properties will be read-only
-        }
-
-        // Step 4: Make console methods read-only using Object.defineProperty
-        // This prevents obfuscated code from restoring console
-        // Do this AFTER setting up Proxy so Proxy can handle any assignment attempts
+        // Make each console method read-only
         consoleMethods.forEach(method => {
             try {
                 Object.defineProperty(console, method, {
@@ -160,7 +120,7 @@
             }
         });
 
-        // Step 5: Monitor for any attempts to restore console (but don't try to assign to read-only properties)
+        // Step 3: Monitor for any attempts to restore console (but don't try to assign to read-only properties)
         // Check every 500ms to see if console methods have been restored (shouldn't happen if read-only)
         // NOTE: We only check, we don't try to assign if properties are read-only
         const productionMonitorInterval = setInterval(() => {

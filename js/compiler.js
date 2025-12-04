@@ -4,6 +4,43 @@
 
 console.log('⚙️ compiler.js loaded');
 
+// Helper function to detect network errors and return user-friendly messages
+function getUserFriendlyErrorMessage(error) {
+    const errorMessage = error.message || error.toString() || '';
+    const errorName = error.name || '';
+
+    // Check for network/internet connectivity issues
+    if (errorMessage.includes('ERR_INTERNET_DISCONNECTED') ||
+        errorMessage.includes('Failed to fetch') ||
+        errorMessage.includes('NetworkError') ||
+        errorMessage.includes('Network request failed') ||
+        errorName === 'TypeError' && errorMessage.includes('fetch')) {
+        return 'Unable to connect. Please check your internet connection and try again.';
+    }
+
+    // Check for timeout errors
+    if (errorMessage.includes('timeout') || errorMessage.includes('TIMEOUT')) {
+        return 'Request took too long. Please check your internet connection and try again.';
+    }
+
+    // Check for CORS errors (but don't reveal it's CORS)
+    if (errorMessage.includes('CORS') || errorMessage.includes('Access-Control')) {
+        return 'Connection issue detected. Please try again in a moment.';
+    }
+
+    // For compilation/runtime errors from Judge0, show them as-is (these are code errors, not system errors)
+    if (errorMessage.includes('Compilation Error') ||
+        errorMessage.includes('Runtime Error') ||
+        errorMessage.includes('Wrong Answer') ||
+        errorMessage.includes('Time Limit Exceeded') ||
+        errorMessage.includes('Memory Limit Exceeded')) {
+        return errorMessage; // These are actual code errors, show them
+    }
+
+    // For any other errors, show generic user-friendly message
+    return 'Something went wrong. Please check your internet connection and try again.';
+}
+
 // API Configurations - RapidAPI key will be loaded from serverless function
 const API_CONFIGS = {
     public: {
@@ -270,8 +307,18 @@ async function runCode() {
     } catch (error) {
         console.error('Error:', error);
 
+        // Get user-friendly error message
+        const userMessage = getUserFriendlyErrorMessage(error);
+
         // If error and we haven't switched APIs yet, try switching
-        if (!apiSwitched && currentAPI === 'public' && shouldSwitchAPI(error)) {
+        // But only if it's not a network error (network errors won't be fixed by switching APIs)
+        const isNetworkError = error.message && (
+            error.message.includes('ERR_INTERNET_DISCONNECTED') ||
+            error.message.includes('Failed to fetch') ||
+            error.message.includes('NetworkError')
+        );
+
+        if (!isNetworkError && !apiSwitched && currentAPI === 'public' && shouldSwitchAPI(error)) {
             console.log('⚠ Public API error detected, automatically switching to RapidAPI...');
             console.log('Error details:', error.message);
             currentAPI = 'rapidapi';
@@ -281,7 +328,7 @@ async function runCode() {
             // Show user-friendly message
             const outputContent = document.getElementById('outputContent');
             outputContent.className = 'output-content running';
-            outputContent.textContent = 'Public API error detected. Switching to RapidAPI...\nRetrying submission...';
+            outputContent.textContent = 'Retrying with alternative service...';
 
             // Retry with RapidAPI
             try {
@@ -290,32 +337,18 @@ async function runCode() {
                 displayResult(result);
 
                 // Add note about API switch in successful result
-                const successNote = '\n\n[✓ Using RapidAPI - You now have access to additional submissions]';
+                const successNote = '\n\n[✓ Using alternative service]';
                 const outputContent2 = document.getElementById('outputContent');
                 outputContent2.textContent += successNote;
             } catch (retryError) {
                 console.error('RapidAPI retry error:', retryError);
-                // Check if this is a real API error or a valid Judge0 response that failed to parse
-                // If the error message suggests it's a compilation/runtime error, show it
-                if (retryError.message && (
-                    retryError.message.includes('Compilation Error') ||
-                    retryError.message.includes('Runtime Error') ||
-                    retryError.message.includes('Wrong Answer')
-                )) {
-                    // This might be a valid error response, try to display it
-                    showOutput(`Error: ${retryError.message}`, 'error');
-                } else {
-                    // Real API failure
-                    showOutput(`Error: ${retryError.message}\n\nBoth APIs are currently unavailable. Please try again later.`, 'error');
-                }
+                // Get user-friendly message for retry error
+                const retryUserMessage = getUserFriendlyErrorMessage(retryError);
+                showOutput(retryUserMessage, 'error');
             }
         } else {
-            // If we've already switched or error doesn't warrant switching, show error
-            if (apiSwitched && currentAPI === 'rapidapi') {
-                showOutput(`Error: ${error.message}\n\nNote: RapidAPI is also experiencing issues. Please try again later.`, 'error');
-            } else {
-                showOutput(`Error: ${error.message}\n\nNote: If errors persist, the API may be temporarily unavailable. Please try again later.`, 'error');
-            }
+            // Show user-friendly error message (no technical details)
+            showOutput(userMessage, 'error');
         }
     } finally {
         hideLoading();
@@ -388,17 +421,23 @@ function shouldSwitchAPI(error) {
 async function submitCode(code, languageId) {
     const apiConfig = API_CONFIGS[currentAPI];
 
-    const response = await fetch(apiConfig.submitUrl, {
-        method: 'POST',
-        headers: apiConfig.headers,
-        body: JSON.stringify({
-            source_code: code,
-            language_id: parseInt(languageId),
-            stdin: '',
-            cpu_time_limit: 2,
-            memory_limit: 128000
-        })
-    });
+    let response;
+    try {
+        response = await fetch(apiConfig.submitUrl, {
+            method: 'POST',
+            headers: apiConfig.headers,
+            body: JSON.stringify({
+                source_code: code,
+                language_id: parseInt(languageId),
+                stdin: '',
+                cpu_time_limit: 2,
+                memory_limit: 128000
+            })
+        });
+    } catch (fetchError) {
+        // Network error - throw user-friendly error
+        throw new Error(getUserFriendlyErrorMessage(fetchError));
+    }
 
     if (!response.ok) {
         let errorText = '';
@@ -506,10 +545,16 @@ async function pollResult(token, maxAttempts = 20, useBase64 = false) {
     for (let i = 0; i < maxAttempts; i++) {
         await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
-        const response = await fetch(endpoint, {
-            method: 'GET',
-            headers: headers
-        });
+        let response;
+        try {
+            response = await fetch(endpoint, {
+                method: 'GET',
+                headers: headers
+            });
+        } catch (fetchError) {
+            // Network error - throw user-friendly error
+            throw new Error(getUserFriendlyErrorMessage(fetchError));
+        }
 
         // Try to parse response even if status is not ok
         // Sometimes Judge0 returns 400 but with valid JSON containing error details

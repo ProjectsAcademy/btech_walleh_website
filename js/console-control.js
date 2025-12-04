@@ -112,35 +112,14 @@
                 set: function (target, prop, value) {
                     // Block any attempts to restore console methods
                     if (consoleMethods.includes(prop)) {
-                        // Check if property is read-only BEFORE trying to assign
-                        try {
-                            const descriptor = Object.getOwnPropertyDescriptor(target, prop);
-                            if (descriptor && descriptor.writable === false) {
-                                // Property is read-only - silently block assignment, don't try to assign
-                                return true; // Return true to indicate "success" (assignment blocked)
-                            }
-                            // Property is writable - set to noop
-                            const noop = function () { };
-                            // Use Reflect.set with try-catch to safely handle any errors
-                            try {
-                                Reflect.set(target, prop, noop);
-                            } catch (e) {
-                                // If assignment fails (maybe became read-only between check and assign), that's fine
-                            }
-                        } catch (e) {
-                            // If we can't check descriptor, try to assign but catch errors
-                            try {
-                                const noop = function () { };
-                                Reflect.set(target, prop, noop);
-                            } catch (assignError) {
-                                // Assignment failed - property is likely read-only, that's fine
-                            }
-                        }
-                        return true; // Always return true to indicate assignment was "handled"
+                        // For console methods, silently block all assignment attempts
+                        // Properties are already read-only, so we just return true without trying to assign
+                        // This prevents errors when code tries to assign to read-only properties
+                        return true; // Silently accept the assignment attempt (but don't actually assign)
                     }
                     // For other properties, allow assignment (but catch errors)
                     try {
-                        Reflect.set(target, prop, value);
+                        target[prop] = value;
                     } catch (e) {
                         // If assignment fails, ignore
                     }
@@ -183,25 +162,28 @@
 
         // Step 5: Monitor for any attempts to restore console (but don't try to assign to read-only properties)
         // Check every 500ms to see if console methods have been restored (shouldn't happen if read-only)
+        // NOTE: We only check, we don't try to assign if properties are read-only
         const productionMonitorInterval = setInterval(() => {
             // Just verify they're still disabled, don't try to assign if read-only
             consoleMethods.forEach(method => {
                 try {
                     const descriptor = Object.getOwnPropertyDescriptor(console, method);
-                    // If property is writable and not a noop, disable it
+                    // Only try to modify if property is writable
                     if (descriptor && descriptor.writable !== false) {
-                        console[method] = noop;
-                        // Try to make it read-only again
+                        // Property is writable - set to noop and make read-only
                         try {
+                            console[method] = noop;
+                            // Try to make it read-only
                             Object.defineProperty(console, method, {
                                 value: noop,
                                 writable: false,
                                 configurable: false
                             });
                         } catch (e) {
-                            // If we can't make it read-only, that's okay
+                            // If assignment or defineProperty fails, ignore
                         }
                     }
+                    // If property is read-only, do nothing - it's already protected
                 } catch (e) {
                     // Ignore errors
                 }
@@ -211,13 +193,19 @@
         // Also verify on page events (but don't try to assign to read-only properties)
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
-                // Just verify, don't assign if read-only
+                // Just verify, only assign if writable
                 consoleMethods.forEach(method => {
                     try {
                         const descriptor = Object.getOwnPropertyDescriptor(console, method);
+                        // Only try to modify if property is writable
                         if (descriptor && descriptor.writable !== false) {
-                            console[method] = noop;
+                            try {
+                                console[method] = noop;
+                            } catch (e) {
+                                // If assignment fails, ignore
+                            }
                         }
+                        // If read-only, do nothing
                     } catch (e) {
                         // Ignore
                     }
@@ -227,13 +215,19 @@
 
         if (window.addEventListener) {
             window.addEventListener('load', () => {
-                // Just verify, don't assign if read-only
+                // Just verify, only assign if writable
                 consoleMethods.forEach(method => {
                     try {
                         const descriptor = Object.getOwnPropertyDescriptor(console, method);
+                        // Only try to modify if property is writable
                         if (descriptor && descriptor.writable !== false) {
-                            console[method] = noop;
+                            try {
+                                console[method] = noop;
+                            } catch (e) {
+                                // If assignment fails, ignore
+                            }
                         }
+                        // If read-only, do nothing
                     } catch (e) {
                         // Ignore
                     }

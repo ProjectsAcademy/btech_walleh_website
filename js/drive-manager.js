@@ -31,6 +31,7 @@ let driveState = {
     currentUser: null,
     currentFile: null,
     files: [],
+    subdirectories: [], // Directories inside the current project/folder
     folderId: null, // Root CompilerFiles folder ID
     currentProjectId: null, // Current project folder ID
     currentProjectName: null, // Current project name
@@ -421,21 +422,24 @@ function updateProjectSelector() {
         }
         projectSelect.appendChild(option);
     });
+
+    // If current project/folder is not in the projects list (e.g., a subfolder), add it temporarily
+    const hasCurrent =
+        driveState.currentProjectId &&
+        driveState.projects.some(p => p.id === driveState.currentProjectId);
+    if (!driveState.viewingRoot && driveState.currentProjectId && !hasCurrent) {
+        const option = document.createElement('option');
+        option.value = driveState.currentProjectId;
+        option.textContent = driveState.currentProjectName || 'Current Folder';
+        option.selected = true;
+        projectSelect.appendChild(option);
+    }
 }
 
-// Create new project
-async function createProject() {
-    const projectName = prompt('Enter project name:', 'New Project');
-    if (!projectName || !projectName.trim()) {
-        return;
-    }
-
-    const trimmedName = projectName.trim();
-
-    // Check if project with same name already exists
-    const existingProject = driveState.projects.find(p => p.name.toLowerCase() === trimmedName.toLowerCase());
-    if (existingProject) {
-        showNotification('A project with this name already exists', 'error');
+// Create new folder inside the current selection (root or current project)
+async function createFolder() {
+    const folderName = prompt('Enter folder name:', 'New Folder');
+    if (!folderName || !folderName.trim()) {
         return;
     }
 
@@ -447,22 +451,46 @@ async function createProject() {
     driveState.operationInProgress = true;
 
     try {
+        // Ensure root exists
         if (!driveState.folderId) {
             await findOrCreateRootFolder();
         }
 
-        const projectId = await findOrCreateProjectFolder(trimmedName);
-        if (projectId) {
-            await loadProjects(); // Reload projects list
-            driveState.currentProjectId = projectId;
-            driveState.currentProjectName = trimmedName;
-            updateProjectSelector();
-            await loadFiles(); // Load files for new project
-            showNotification(`Created project "${trimmedName}"`, 'success');
+        // Determine parent: root when viewingRoot, otherwise current project
+        let parentId = null;
+        if (driveState.viewingRoot) {
+            parentId = driveState.folderId;
+        } else if (driveState.currentProjectId) {
+            parentId = driveState.currentProjectId;
+        } else {
+            showNotification('Please select a project or /root to create a folder.', 'error');
+            return;
+        }
+
+        const trimmedName = folderName.trim();
+
+        // Create folder under the parent
+        const createResponse = await gapi.client.drive.files.create({
+            resource: {
+                name: trimmedName,
+                mimeType: 'application/vnd.google-apps.folder',
+                parents: [parentId]
+            },
+            fields: 'id, name, modifiedTime'
+        });
+
+        showNotification(`Created folder "${trimmedName}"`, 'success');
+
+        // Refresh the current view
+        if (driveState.viewingRoot) {
+            await loadRootDirectories();
+            displayDirectories(driveState.directories);
+        } else {
+            await loadFiles();
         }
     } catch (error) {
-        console.error('Error creating project:', error);
-        showNotification('Failed to create project', 'error');
+        console.error('Error creating folder:', error);
+        showNotification('Failed to create folder', 'error');
     } finally {
         driveState.operationInProgress = false;
     }
@@ -604,9 +632,14 @@ int main() {
         return;
     }
 
-    // Handle directory selection (when clicking on a directory from root view)
-    // Check if this is a directory ID from the directories list
-    const directory = driveState.directories.find(d => d.id === projectId);
+    // Handle directory selection (when clicking on a directory from root view or subfolder in project)
+    // Check if this is a directory ID from the root directories list
+    let directory = driveState.directories.find(d => d.id === projectId);
+    // If not found in root, check subdirectories within current project
+    if (!directory && driveState.subdirectories && driveState.subdirectories.length > 0) {
+        directory = driveState.subdirectories.find(d => d.id === projectId);
+    }
+
     if (directory) {
         // Check for unsaved changes
         if (driveState.hasUnsavedChanges && driveState.currentFile) {
@@ -660,6 +693,8 @@ int main() {
         }
 
         updateProjectSelector();
+
+        // When opening a directory, load its children (subdirectories + files)
         await loadFiles();
         showNotification(`Opened directory "${directory.name}"`, 'info');
         return;
@@ -748,20 +783,26 @@ async function loadFiles() {
         const fileList = document.getElementById('fileList');
         fileList.innerHTML = '<div class="file-list-empty">Loading files...</div>';
 
-        // Build query to filter C/C++ files in the current project folder
+        // Build query to include C/C++ files AND folders in the current project
         const extensionQuery = DRIVE_CONFIG.ALLOWED_EXTENSIONS
             .map(ext => `name contains '${ext}'`)
             .join(' or ');
 
         const response = await gapi.client.drive.files.list({
-            q: `'${driveState.currentProjectId}' in parents and (${extensionQuery}) and trashed=false`,
+            q: `'${driveState.currentProjectId}' in parents and trashed=false and (mimeType='application/vnd.google-apps.folder' or (${extensionQuery}))`,
             fields: 'files(id, name, mimeType, modifiedTime, size)',
             orderBy: 'modifiedTime desc',
             spaces: 'drive'
         });
 
-        driveState.files = response.result.files || [];
-        displayFiles(driveState.files);
+        const items = response.result.files || [];
+        const directories = items.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
+        const files = items.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+
+        driveState.subdirectories = directories;
+        driveState.files = files;
+
+        displayFilesAndDirectories(directories, files);
     } catch (error) {
         console.error('Error loading files:', error);
         showNotification('Failed to load files from Drive', 'error');
@@ -769,16 +810,12 @@ async function loadFiles() {
     }
 }
 
-// Display directories in the list (when viewing root)
-function displayDirectories(directories) {
-    const fileList = document.getElementById('fileList');
-
-    if (directories.length === 0) {
-        fileList.innerHTML = '<div class="file-list-empty">No directories found in root.</div>';
-        return;
+// Render directories to HTML (root or project view)
+function renderDirectories(directories) {
+    if (!directories || directories.length === 0) {
+        return '';
     }
 
-    // Apply search filter
     const searchTerm = document.getElementById('fileSearch').value.toLowerCase();
     let filteredDirs = directories.filter(dir =>
         dir.name.toLowerCase().includes(searchTerm)
@@ -787,8 +824,8 @@ function displayDirectories(directories) {
     // Sort by name
     filteredDirs.sort((a, b) => a.name.localeCompare(b.name));
 
-    fileList.innerHTML = filteredDirs.map(dir => {
-        const modifiedDate = new Date(dir.modifiedTime).toLocaleDateString();
+    return filteredDirs.map(dir => {
+        const modifiedDate = dir.modifiedTime ? new Date(dir.modifiedTime).toLocaleDateString() : '';
 
         return `
             <div class="file-item" data-file-id="${dir.id}" data-is-directory="true">
@@ -798,7 +835,7 @@ function displayDirectories(directories) {
                     </svg>
                     <div class="file-details">
                         <div class="file-name">${escapeHtml(dir.name)}</div>
-                        <div class="file-meta">Directory • Modified: ${modifiedDate}</div>
+                        <div class="file-meta">Directory${modifiedDate ? ` • Modified: ${modifiedDate}` : ''}</div>
                     </div>
                 </div>
             </div>
@@ -806,16 +843,12 @@ function displayDirectories(directories) {
     }).join('');
 }
 
-// Display files in the list
-function displayFiles(files) {
-    const fileList = document.getElementById('fileList');
-
-    if (files.length === 0) {
-        fileList.innerHTML = '<div class="file-list-empty">No C/C++ files found. Create or upload a file to get started.</div>';
-        return;
+// Render files to HTML (filtered & sorted)
+function renderFiles(files) {
+    if (!files || files.length === 0) {
+        return '';
     }
 
-    // Apply search filter
     const searchTerm = document.getElementById('fileSearch').value.toLowerCase();
     let filteredFiles = files.filter(file =>
         file.name.toLowerCase().includes(searchTerm)
@@ -836,7 +869,7 @@ function displayFiles(files) {
         }
     });
 
-    fileList.innerHTML = filteredFiles.map(file => {
+    return filteredFiles.map(file => {
         const extension = '.' + file.name.split('.').pop();
         const modifiedDate = new Date(file.modifiedTime).toLocaleDateString();
         const isActive = driveState.currentFile && driveState.currentFile.id === file.id;
@@ -872,6 +905,33 @@ function displayFiles(files) {
             </div>
         `;
     }).join('');
+}
+
+// Display directories in the list (root view)
+function displayDirectories(directories) {
+    const fileList = document.getElementById('fileList');
+    const dirHtml = renderDirectories(directories);
+
+    if (!dirHtml) {
+        fileList.innerHTML = '<div class="file-list-empty">No directories found in root.</div>';
+        return;
+    }
+
+    fileList.innerHTML = dirHtml;
+}
+
+// Display both directories and files (project view)
+function displayFilesAndDirectories(directories, files) {
+    const fileList = document.getElementById('fileList');
+    const dirHtml = renderDirectories(directories);
+    const fileHtml = renderFiles(files);
+
+    if (!dirHtml && !fileHtml) {
+        fileList.innerHTML = '<div class="file-list-empty">No C/C++ files or folders found. Create or upload a file to get started.</div>';
+        return;
+    }
+
+    fileList.innerHTML = `${dirHtml}${fileHtml}`;
 }
 
 // Open directory (when clicking on a directory from root view)
@@ -1738,7 +1798,22 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
 
     document.getElementById('unlinkDriveBtn').addEventListener('click', unlinkDrive);
-    document.getElementById('refreshFilesBtn').addEventListener('click', loadFiles);
+
+    // Refresh button: if viewing /root, reload directories; otherwise reload files
+    document.getElementById('refreshFilesBtn').addEventListener('click', async () => {
+        if (driveState.viewingRoot) {
+            try {
+                await loadRootDirectories();
+                displayDirectories(driveState.directories);
+            } catch (error) {
+                console.error('Error refreshing root directories:', error);
+                showNotification('Failed to refresh directories', 'error');
+            }
+        } else {
+            await loadFiles();
+        }
+    });
+
     document.getElementById('createFileBtn').addEventListener('click', createFilePrompt);
     document.getElementById('uploadFileBtn').addEventListener('click', uploadFile);
     document.getElementById('fileUploadInput').addEventListener('change', handleFileUpload);
@@ -1777,7 +1852,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     const createProjectBtn = document.getElementById('createProjectBtn');
     if (createProjectBtn) {
-        createProjectBtn.addEventListener('click', createProject);
+        createProjectBtn.addEventListener('click', createFolder);
     }
 
     // Track editor changes - wait for editor to be available

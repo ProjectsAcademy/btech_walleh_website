@@ -49,6 +49,16 @@ let driveState = {
 // Token client variable
 let tokenClient = null;
 
+// OAuth state for CSRF protection
+let oauthState = null;
+
+// Generate a random state value for OAuth CSRF protection
+function generateOAuthState() {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 // Initialize Google APIs
 function initializeGoogleAPIs() {
     // Wait for gapi to be available
@@ -115,10 +125,13 @@ function initializeGoogleAPIs() {
     const initGoogleIdentity = () => {
         if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
             try {
+                // Generate state for CSRF protection
+                oauthState = generateOAuthState();
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: DRIVE_CONFIG.CLIENT_ID,
                     scope: DRIVE_CONFIG.SCOPES,
                     callback: handleTokenResponse,
+                    state: oauthState,
                 });
                 driveState.gisLoaded = true;
                 console.log('Token client initialized with scopes:', DRIVE_CONFIG.SCOPES);
@@ -1764,10 +1777,13 @@ document.addEventListener('DOMContentLoaded', async function () {
                 // Try to initialize if google.accounts is now available
                 if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2 && !tokenClient) {
                     try {
+                        // Generate state for CSRF protection
+                        oauthState = generateOAuthState();
                         tokenClient = google.accounts.oauth2.initTokenClient({
                             client_id: DRIVE_CONFIG.CLIENT_ID,
                             scope: DRIVE_CONFIG.SCOPES,
                             callback: handleTokenResponse,
+                            state: oauthState,
                         });
                         driveState.gisLoaded = true;
                         break;
@@ -1788,6 +1804,15 @@ document.addEventListener('DOMContentLoaded', async function () {
         setButtonLoading('linkDriveBtn', true);
 
         try {
+            // Regenerate state for each OAuth request to ensure security
+            oauthState = generateOAuthState();
+            // Reinitialize token client with new state
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: DRIVE_CONFIG.CLIENT_ID,
+                scope: DRIVE_CONFIG.SCOPES,
+                callback: handleTokenResponse,
+                state: oauthState,
+            });
             tokenClient.requestAccessToken({ prompt: 'consent' });
         } catch (error) {
             console.error('Error requesting access token:', error);

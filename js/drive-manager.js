@@ -52,6 +52,49 @@ let tokenClient = null;
 // OAuth state for CSRF protection
 let oauthState = null;
 
+// Safely control the "Link Google Drive" button so users can't click
+// it before Google APIs and credentials are fully ready
+function setLinkDriveButtonEnabled(enabled, state = 'default') {
+    const linkBtn = document.getElementById('linkDriveBtn');
+    if (!linkBtn) return;
+
+    // Cache original HTML the first time we touch the button
+    if (!linkBtn.dataset.initialHtml) {
+        linkBtn.dataset.initialHtml = linkBtn.innerHTML;
+    }
+
+    if (!enabled) {
+        linkBtn.disabled = true;
+        linkBtn.style.opacity = '0.6';
+        linkBtn.style.cursor = 'not-allowed';
+        linkBtn.setAttribute('aria-disabled', 'true');
+
+        // Keep a very light label to avoid confusing the user
+        const label =
+            state === 'error'
+                ? 'Google Drive unavailable'
+                : 'Loading Google Drive...';
+        linkBtn.textContent = label;
+    } else {
+        linkBtn.disabled = false;
+        linkBtn.style.opacity = '1';
+        linkBtn.style.cursor = 'pointer';
+        linkBtn.removeAttribute('aria-disabled');
+
+        if (linkBtn.dataset.initialHtml) {
+            linkBtn.innerHTML = linkBtn.dataset.initialHtml;
+        }
+    }
+}
+
+// Enable the Link Drive button only when *all* prerequisites are ready
+function maybeEnableLinkDriveButton() {
+    if (!credentialsLoaded) return;
+    if (!driveState.gapiLoaded) return;
+    if (!driveState.gisLoaded) return;
+    setLinkDriveButtonEnabled(true);
+}
+
 // Generate a random state value for OAuth CSRF protection
 function generateOAuthState() {
     const array = new Uint8Array(32);
@@ -95,6 +138,9 @@ function initializeGoogleAPIs() {
             driveState.gapiLoaded = true;
             console.log('Google API loaded successfully');
 
+            // If GIS is also ready and credentials are loaded, enable the button
+            maybeEnableLinkDriveButton();
+
             // Restore original console.error after successful load
             console.error = originalConsoleError;
         } catch (error) {
@@ -118,6 +164,8 @@ function initializeGoogleAPIs() {
             }
 
             showNotification(errorMessage, 'error');
+            // Make sure the button stays disabled if APIs failed to load
+            setLinkDriveButtonEnabled(false, 'error');
         }
     });
 
@@ -135,9 +183,12 @@ function initializeGoogleAPIs() {
                 });
                 driveState.gisLoaded = true;
                 console.log('Token client initialized with scopes:', DRIVE_CONFIG.SCOPES);
+                // If gapi is also ready and credentials are loaded, enable the button
+                maybeEnableLinkDriveButton();
             } catch (error) {
                 console.error('Error initializing token client:', error);
                 driveState.gisLoaded = false;
+                setLinkDriveButtonEnabled(false, 'error');
             }
         } else {
             // Google Identity Services not loaded yet, wait and retry
@@ -862,13 +913,15 @@ function renderFiles(files) {
         return '';
     }
 
-    const searchTerm = document.getElementById('fileSearch').value.toLowerCase();
+    const searchInput = document.getElementById('fileSearch');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
     let filteredFiles = files.filter(file =>
         file.name.toLowerCase().includes(searchTerm)
     );
 
-    // Apply sorting
-    const sortBy = document.getElementById('fileSort').value;
+    // Apply sorting – default to "modified" if sort control is not present
+    const sortSelect = document.getElementById('fileSort');
+    const sortBy = sortSelect ? sortSelect.value : 'modified';
     filteredFiles.sort((a, b) => {
         switch (sortBy) {
             case 'name':
@@ -1729,6 +1782,8 @@ document.addEventListener('DOMContentLoaded', async function () {
             banner.style.display = 'block';
             banner.innerHTML = '<p><strong>Configuration Error:</strong> API credentials are not properly configured. Please contact the administrator.</p>';
         }
+        // Credentials are missing – keep the button disabled and clearly labelled
+        setLinkDriveButtonEnabled(false, 'error');
         return;
     }
 
@@ -1740,6 +1795,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             banner.style.display = 'block';
             banner.innerHTML = '<p><strong>Configuration Error:</strong> API credentials are missing. Please contact the administrator.</p>';
         }
+        setLinkDriveButtonEnabled(false, 'error');
         return;
     }
 
@@ -1748,6 +1804,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (banner) {
         banner.style.display = 'none';
     }
+    // While Google scripts finish loading, keep the button disabled with a friendly label
+    setLinkDriveButtonEnabled(false, 'loading');
     initializeGoogleAPIs();
 
     // Event listeners
@@ -1842,20 +1900,29 @@ document.addEventListener('DOMContentLoaded', async function () {
     document.getElementById('createFileBtn').addEventListener('click', createFilePrompt);
     document.getElementById('uploadFileBtn').addEventListener('click', uploadFile);
     document.getElementById('fileUploadInput').addEventListener('change', handleFileUpload);
-    document.getElementById('fileSearch').addEventListener('input', () => {
-        if (driveState.viewingRoot) {
-            displayDirectories(driveState.directories);
-        } else {
-            displayFiles(driveState.files);
-        }
-    });
-    document.getElementById('fileSort').addEventListener('change', () => {
-        if (driveState.viewingRoot) {
-            displayDirectories(driveState.directories);
-        } else {
-            displayFiles(driveState.files);
-        }
-    });
+    const fileSearchInput = document.getElementById('fileSearch');
+    if (fileSearchInput) {
+        fileSearchInput.addEventListener('input', () => {
+            if (driveState.viewingRoot) {
+                displayDirectories(driveState.directories);
+            } else {
+                displayFiles(driveState.files);
+            }
+        });
+    }
+
+    // Sort control was removed from the HTML; guard against null so the rest
+    // of the listeners (including the Create File modal buttons) still attach.
+    const fileSortSelect = document.getElementById('fileSort');
+    if (fileSortSelect) {
+        fileSortSelect.addEventListener('change', () => {
+            if (driveState.viewingRoot) {
+                displayDirectories(driveState.directories);
+            } else {
+                displayFiles(driveState.files);
+            }
+        });
+    }
     document.getElementById('saveFileBtn').addEventListener('click', saveFile);
     document.getElementById('createFileSubmitBtn').addEventListener('click', createFile);
     document.getElementById('createFileCancelBtn').addEventListener('click', () => {

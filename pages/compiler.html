@@ -994,6 +994,32 @@
                 min-width: auto;
             }
         }
+
+        /* Compact the Drive box on small screens */
+        @media (max-width: 768px) {
+            .drive-connection-section {
+                padding: 1rem;
+                margin-bottom: 1rem;
+            }
+
+            .drive-connection-header {
+                gap: 0.5rem;
+            }
+
+            .drive-connection-header h3 {
+                font-size: 1rem;
+            }
+
+            .link-drive-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            /* Hide verbose description to avoid taking the whole viewport */
+            .drive-description {
+                display: none;
+            }
+        }
     </style>
 </head>
 

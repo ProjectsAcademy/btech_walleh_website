@@ -780,6 +780,24 @@ footer::after {
   margin: 0;
 }
 
+/* Ensure footer links use the theme accent and do not show default visited purple */
+.footer-quick-links li a,
+.footer-bottom a {
+  color: #ffc107;
+  text-decoration: none;
+}
+
+.footer-quick-links li a:visited,
+.footer-bottom a:visited {
+  color: #ffc107;
+}
+
+.footer-quick-links li a:hover,
+.footer-bottom a:hover {
+  color: #ffd54f;
+  text-decoration: underline;
+}
+
 /* Floating Contact Icon */
 .floating-contact-icon {
   position: fixed;
